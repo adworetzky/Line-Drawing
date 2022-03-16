@@ -1,48 +1,48 @@
 // four steps
 // start with real image (DONE)
 // use blob detection to generate same brightness iso lines (DONE)
-// simplify (WORKING ON IT)
-// draw catmull rom splines though said vertecies (NEED A BETTER WAY, DON'T LIKE CURRENT LIBRARY)
+// simplify/smooth (paper. js does it but slow)
+// draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
 
-let threshLow = 0;
+let threshLow = 1;
 let threshHigh = 255;
 let levels = 20;
 let tension = -0.75;
-let tolerance = 10;
-let lWidth = 0.5;
-let cWidth = 800;
-let cHeight = 800;
-let minNumPointsInContour = 4;
+let tolerance = 5;
+let lWidth = 0.4;
+let cWidth = 1080;
+let cHeight = 1080;
+let minNumPointsInContour = 5;
 const imgUrl = 'https://source.unsplash.com/random';
 function init() {
+  const main = document.querySelector('main');
   const img = document.createElement('img');
   img.id = 'i0';
   img.crossOrigin = 'Anonymous';
-  document.body.appendChild(img);
-
+  main.appendChild(img);
   const cInput = document.createElement('canvas');
   cInput.id = 'c0';
   cInput.width = cWidth;
   cInput.height = cHeight;
-
-  document.body.appendChild(cInput);
+  main.appendChild(cInput);
   const cOutput = document.createElement('canvas');
   cOutput.id = 'c1';
   cOutput.width = cWidth;
   cOutput.height = cHeight;
-
-  document.body.appendChild(cOutput);
+  main.appendChild(cOutput);
 
   img.onload = function () {
-    console.log('img loaded');
+    console.timeEnd('Image Load Time');
+    console.log('Img Loaded');
 
     paper.setup('c1');
-    paper.view.size.width = cWidth;
-    paper.view.size.height = cHeight;
-    let center = new paper.Point(cWidth / 2, cHeight / 2);
-    paper.view.center = center;
+    // paper.view.size.width = cWidth;
+    // paper.view.size.height = cHeight;
+    // let center = new paper.Point(cWidth / 2, cHeight / 2);
+    // paper.view.center = center;
     draw.imgToCanvas();
   };
+  console.time('Image Load Time');
   img.src = imgUrl;
 }
 const draw = {
@@ -63,7 +63,7 @@ const draw = {
     const cOutput = document.querySelector('#c1');
     const ctxOutput = cOutput.getContext('2d');
 
-    console.log('cvloaded');
+    console.log('Open CV loaded');
 
     let inc = (threshHigh - threshLow) / levels;
     let tInc = threshLow;
@@ -73,11 +73,10 @@ const draw = {
       threshArr.push(tInc);
     }
     console.log('Curve Draw Started');
-    let t1 = performance.now();
+    console.time('Line Drawing Time');
     // loop to perform contour find and draw a difference levels of grey
     let src = cv.imread(cInput);
     threshArr.forEach((element) => {
-      console.log(element);
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
       cv.threshold(dst, dst, element, 255, cv.THRESH_BINARY);
@@ -110,15 +109,17 @@ const draw = {
           return [element[0] * currentScale, element[1] * currentScale];
         });
       });
-
+      // TODO make a group
       scaledPoints.forEach((element) => {
         let path = new paper.Path(element);
-        path.closed = true;
-        path.simplify([tolerance]);
-        path.smooth({ type: 'catmull-rom', factor: tension * Math.random() });
+        path.closed = false;
 
+        path.simplify([tolerance]);
+        path.smooth({ type: 'catmull-rom', factor: tension });
         path.strokeWidth = lWidth;
-        path.strokeColor = 'black';
+        path.strokeScaling = false;
+        path.miterLimit = 10;
+        path.strokeColor = '#313639 ';
       });
 
       dst.delete();
@@ -130,12 +131,8 @@ const draw = {
       document.querySelector('#c1').offsetHeight,
     ];
     paper.view.draw();
+    console.timeEnd('Line Drawing Time');
     src.delete();
-    let t2 = performance.now();
-    console.log(
-      'Curve Draw Finished, took: ' + (t2 - t1) / 1000 + ' seconds'
-      // draw.downloadAsSVG('test');
-    );
   },
   downloadAsSVG: function (fileName) {
     if (!fileName) {
