@@ -1,0 +1,38 @@
+html {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+}
+body {
+  margin: auto;
+  width: 80%;
+  display: flex;
+  flex-wrap: wrap;
+
+  justify-content: space-evenly;
+}
+
+#i0 {
+  margin: auto;
+  width: 300px;
+  height: auto;
+  display: none;
+}
+#c0 {
+  margin: 1% auto;
+  aspect-ratio: 1/1;
+  max-width: 40%;
+}
+#c1 {
+  background-image: url(./assets/ivory-off-white-paper-texture.jpg);
+  background-size: cover;
+  aspect-ratio: 1/1;
+  max-width: 40%;
+  margin: 1% auto;
+}
+
+/* #c0,
+#c1[resize] {
+  margin: 1% auto;
+  max-width: 30vw;
+} */
