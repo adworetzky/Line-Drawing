@@ -6,9 +6,9 @@
 
 let threshLow = 1;
 let threshHigh = 255;
-let levels = 5;
-let tension = -0.75;
-let tolerance = 5;
+let levels = 10;
+let tension = 2;
+let tolerance = 10;
 let lWidth = 0.4;
 let cWidth = 1080;
 let cHeight = 1080;
@@ -48,6 +48,10 @@ function init() {
   fileInputLabel.setAttribute('for', 'fileUpload');
   fileInputLabel.innerHTML = 'Stock Image:';
   fileInput.insertAdjacentElement('beforebegin', fileInputLabel);
+  const newImageButton = document.createElement('button');
+  newImageButton.innerHTML = 'New Image';
+  newImageButton.id = 'new-I=image-button';
+  controls.appendChild(newImageButton);
   const saveButton = document.createElement('button');
   saveButton.innerHTML = 'Save as PNG';
   saveButton.id = 'save-button';
@@ -56,24 +60,22 @@ function init() {
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
-
     paper.setup('c1');
-    // paper.view.size.width = cWidth;
-    // paper.view.size.height = cHeight;
-    // let center = new paper.Point(cWidth / 2, cHeight / 2);
-    // paper.view.center = center;
     draw.imgToCanvas();
   };
-  fileInput.addEventListener('change', function () {
-    console.log(fileInput.files[0]);
-    img.src = URL.createObjectURL(fileInput.files[0]);
-    // draw.imgToCanvas();
-    console.log('File Uploaded');
-    console.time('Image Load Time');
-  });
+  img.src = imgUrl;
+
+  fileInput.onchange = () =>
+    function () {
+      console.log(fileInput.files[0]);
+      img.src = URL.createObjectURL(fileInput.files[0]);
+      // draw.imgToCanvas();
+      console.log('File Uploaded');
+      console.time('Image Load Time');
+    };
+  newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
   saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
   console.time('Image Load Time');
-  img.src = imgUrl;
 }
 const draw = {
   imgToCanvas: function () {
@@ -134,8 +136,15 @@ const draw = {
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
       });
+
+      let sFPoints = [];
+      fPoints.forEach((element) => {
+        let simplifiedPoints = simplify(element, tolerance);
+        sFPoints.push(simplifiedPoints);
+      });
+
       let currentScale = getScale();
-      let scaledPoints = fPoints.map(function (nested) {
+      let scaledPoints = sFPoints.map(function (nested) {
         return nested.map(function (element) {
           return [element[0] * currentScale, element[1] * currentScale];
         });
@@ -144,7 +153,7 @@ const draw = {
       scaledPoints.forEach((element) => {
         let path = new paper.Path(element);
         path.closed = false;
-        path.simplify([tolerance]);
+        // path.simplify([tolerance]);
         path.smooth({ type: 'catmull-rom', factor: tension });
         group.addChild(path);
       });
@@ -153,18 +162,13 @@ const draw = {
       contours.delete();
       hierarchy.delete();
     });
-    // paper.view.viewsize = [
-    //   document.querySelector('#c1').offsetWidth,
-    //   document.querySelector('#c1').offsetHeight
-    // ];
-    console.log(group);
+    src.delete();
     group.strokeWidth = lWidth;
     group.strokeScaling = false;
-    group.miterLimit = 5;
+    group.miterLimit = 10;
     group.strokeColor = '#313639 ';
     paper.view.draw();
     console.timeEnd('Line Drawing Time');
-    src.delete();
   },
   downloadAsSVG: function (fileName) {
     if (!fileName) {
@@ -197,6 +201,11 @@ function saveCanvasAsPNG(canvas) {
   link.href = canvas.toDataURL();
   link.click();
   link.delete;
+}
+function getNewImage(img) {
+  img.src = '';
+  img.src = 'https://source.unsplash.com/random/';
+  console.time('Image Load Time');
 }
 
 cv['onRuntimeInitialized'] = () => {
