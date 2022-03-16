@@ -6,17 +6,24 @@
 
 let threshLow = 1;
 let threshHigh = 255;
-let levels = 20;
+let levels = 5;
 let tension = -0.75;
 let tolerance = 5;
 let lWidth = 0.4;
 let cWidth = 1080;
 let cHeight = 1080;
-let minNumPointsInContour = 5;
+let minNumPointsInContour = 3;
 const imgUrl = 'https://source.unsplash.com/random';
+let img, fileInput;
+
 function init() {
-  const main = document.querySelector('main');
-  const img = document.createElement('img');
+  const controls = document.createElement('div');
+  controls.id = 'controls';
+  document.body.appendChild(controls);
+  const main = document.createElement('main');
+  document.body.appendChild(main);
+
+  img = document.createElement('img');
   img.id = 'i0';
   img.crossOrigin = 'Anonymous';
   main.appendChild(img);
@@ -31,6 +38,21 @@ function init() {
   cOutput.height = cHeight;
   main.appendChild(cOutput);
 
+  const fileInput = document.createElement('input');
+  controls.append(fileInput);
+  fileInput.classList.add('uiElement');
+  fileInput.type = 'file';
+  fileInput.setAttribute('id', 'fileUpload');
+  const fileInputLabel = document.createElement('label');
+  fileInputLabel.classList.add('uiElementLabel');
+  fileInputLabel.setAttribute('for', 'fileUpload');
+  fileInputLabel.innerHTML = 'Stock Image:';
+  fileInput.insertAdjacentElement('beforebegin', fileInputLabel);
+  const saveButton = document.createElement('button');
+  saveButton.innerHTML = 'Save as PNG';
+  saveButton.id = 'save-button';
+  controls.appendChild(saveButton);
+
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
@@ -42,18 +64,26 @@ function init() {
     // paper.view.center = center;
     draw.imgToCanvas();
   };
+  fileInput.addEventListener('change', function () {
+    console.log(fileInput.files[0]);
+    img.src = URL.createObjectURL(fileInput.files[0]);
+    // draw.imgToCanvas();
+    console.log('File Uploaded');
+    console.time('Image Load Time');
+  });
+  saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
   console.time('Image Load Time');
   img.src = imgUrl;
 }
 const draw = {
   imgToCanvas: function () {
-    const img = document.querySelector('#i0');
     const c = document.querySelector('#c0');
     const ctx = c.getContext('2d');
     var scale = Math.max(c.width / img.width, c.height / img.height);
     // get the top left position of the image
     var x = c.width / 2 - (img.width / 2) * scale;
     var y = c.height / 2 - (img.height / 2) * scale;
+    ctx.clearRect(0, 0, c.width, c.height);
     ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
     draw.contourMap();
   },
@@ -76,6 +106,7 @@ const draw = {
     console.time('Line Drawing Time');
     // loop to perform contour find and draw a difference levels of grey
     let src = cv.imread(cInput);
+    let group = new paper.Group();
     threshArr.forEach((element) => {
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
@@ -109,27 +140,28 @@ const draw = {
           return [element[0] * currentScale, element[1] * currentScale];
         });
       });
-      // TODO make a group
+
       scaledPoints.forEach((element) => {
         let path = new paper.Path(element);
         path.closed = false;
-
         path.simplify([tolerance]);
         path.smooth({ type: 'catmull-rom', factor: tension });
-        path.strokeWidth = lWidth;
-        path.strokeScaling = false;
-        path.miterLimit = 10;
-        path.strokeColor = '#313639 ';
+        group.addChild(path);
       });
 
       dst.delete();
       contours.delete();
       hierarchy.delete();
     });
-    paper.view.viewsize = [
-      document.querySelector('#c1').offsetWidth,
-      document.querySelector('#c1').offsetHeight,
-    ];
+    // paper.view.viewsize = [
+    //   document.querySelector('#c1').offsetWidth,
+    //   document.querySelector('#c1').offsetHeight
+    // ];
+    console.log(group);
+    group.strokeWidth = lWidth;
+    group.strokeScaling = false;
+    group.miterLimit = 5;
+    group.strokeColor = '#313639 ';
     paper.view.draw();
     console.timeEnd('Line Drawing Time');
     src.delete();
@@ -153,6 +185,18 @@ const draw = {
 function getScale() {
   let scale = document.querySelector('#c1').offsetWidth / cWidth;
   return scale;
+}
+
+function saveCanvasAsPNG(canvas) {
+  const link = document.createElement('a');
+  let d = new Date(),
+    h = (d.getHours() < 10 ? '0' : '') + d.getHours(),
+    m = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(),
+    s = (d.getSeconds() < 10 ? '0' : '') + d.getSeconds();
+  link.download = 'Drawing-' + h + '.' + m + '.' + s + '.png';
+  link.href = canvas.toDataURL();
+  link.click();
+  link.delete;
 }
 
 cv['onRuntimeInitialized'] = () => {

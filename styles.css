@@ -7,9 +7,15 @@ body {
   margin: auto;
   width: 100%;
   display: flex;
+  flex-wrap: wrap;
+}
+#controls {
+  /* width: 100%; */
+  height: 10%;
+  margin: auto;
 }
 main {
-  margin: auto;
+  margin: 1% auto;
   width: 80%;
   display: flex;
   flex-wrap: wrap;
