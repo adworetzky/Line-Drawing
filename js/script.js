@@ -4,10 +4,10 @@
 // simplify/smooth (paper. js does it but slow)
 // draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
 
-let threshLow = 1;
-let threshHigh = 255;
-let levels = 10;
-let tension = 2;
+let threshLow = 20;
+let threshHigh = 230;
+let levels = 20;
+let tension = -2;
 let tolerance = 10;
 let lWidth = 0.4;
 let cWidth = 1080;
@@ -43,11 +43,6 @@ function init() {
   fileInput.classList.add('uiElement');
   fileInput.type = 'file';
   fileInput.setAttribute('id', 'fileUpload');
-  const fileInputLabel = document.createElement('label');
-  fileInputLabel.classList.add('uiElementLabel');
-  fileInputLabel.setAttribute('for', 'fileUpload');
-  fileInputLabel.innerHTML = 'Stock Image:';
-  fileInput.insertAdjacentElement('beforebegin', fileInputLabel);
   const newImageButton = document.createElement('button');
   newImageButton.innerHTML = 'New Image';
   newImageButton.id = 'new-I=image-button';
@@ -65,14 +60,12 @@ function init() {
   };
   img.src = imgUrl;
 
-  fileInput.onchange = () =>
-    function () {
-      console.log(fileInput.files[0]);
-      img.src = URL.createObjectURL(fileInput.files[0]);
-      // draw.imgToCanvas();
-      console.log('File Uploaded');
-      console.time('Image Load Time');
-    };
+  fileInput.onchange = function () {
+    console.log(fileInput.files[0]);
+    img.src = URL.createObjectURL(fileInput.files[0]);
+    console.log('File Uploaded');
+    console.time('Image Load Time');
+  };
   newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
   saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
   console.time('Image Load Time');
@@ -203,7 +196,6 @@ function saveCanvasAsPNG(canvas) {
   link.delete;
 }
 function getNewImage(img) {
-  img.src = '';
   img.src = 'https://source.unsplash.com/random/';
   console.time('Image Load Time');
 }
