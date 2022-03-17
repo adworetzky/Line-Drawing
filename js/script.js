@@ -1,7 +1,7 @@
 // four steps
 // start with real image (DONE)
 // use blob detection to generate same brightness iso lines (DONE)
-// simplify/smooth (paper. js does it but slow)
+// simplify/smooth (doing it manually)
 // draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
 
 let threshLow = 1;
