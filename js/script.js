@@ -4,11 +4,11 @@
 // simplify/smooth (paper. js does it but slow)
 // draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
 
-let threshLow = 20;
-let threshHigh = 230;
-let levels = 20;
-let tension = -2;
-let tolerance = 10;
+let threshLow = 1;
+let threshHigh = 250;
+let levels = 10;
+let tension = -0.5;
+let tolerance = 5;
 let lWidth = 0.4;
 let cWidth = 1080;
 let cHeight = 1080;
@@ -51,6 +51,10 @@ function init() {
   saveButton.innerHTML = 'Save as PNG';
   saveButton.id = 'save-button';
   controls.appendChild(saveButton);
+  const drawButton = document.createElement('button');
+  drawButton.innerHTML = 'Draw Lines';
+  drawButton.id = 'draw-button';
+  controls.appendChild(drawButton);
 
   img.onload = function () {
     console.timeEnd('Image Load Time');
@@ -68,6 +72,8 @@ function init() {
   };
   newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
   saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
+  drawButton.onclick = () => draw.contourMap();
+
   console.time('Image Load Time');
 }
 const draw = {
@@ -80,7 +86,7 @@ const draw = {
     var y = c.height / 2 - (img.height / 2) * scale;
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-    draw.contourMap();
+    // draw.contourMap();
   },
   contourMap: function () {
     const cInput = document.querySelector('#c0');
@@ -145,7 +151,7 @@ const draw = {
 
       scaledPoints.forEach((element) => {
         let path = new paper.Path(element);
-        path.closed = false;
+        path.closed = true;
         // path.simplify([tolerance]);
         path.smooth({ type: 'catmull-rom', factor: tension });
         group.addChild(path);
@@ -158,7 +164,7 @@ const draw = {
     src.delete();
     group.strokeWidth = lWidth;
     group.strokeScaling = false;
-    group.miterLimit = 10;
+    group.miterLimit = 5;
     group.strokeColor = '#313639 ';
     paper.view.draw();
     console.timeEnd('Line Drawing Time');
