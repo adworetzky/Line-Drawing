@@ -93,6 +93,7 @@ const draw = {
     const ctxInput = cInput.getContext('2d');
     const cOutput = document.querySelector('#c1');
     const ctxOutput = cOutput.getContext('2d');
+    paper.project.clear();
 
     console.log('Open CV loaded');
 
