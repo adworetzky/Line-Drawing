@@ -13,7 +13,6 @@ body {
   justify-content: center;
 }
 #controls {
-  /* height: 10%; */
   margin: 5% auto;
   display: flex;
   flex-direction: column;
