@@ -4,15 +4,15 @@
 // simplify/smooth (doing it manually)
 // draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
 
-let threshLow = 1;
-let threshHigh = 250;
+let threshLow = 30;
+let threshHigh = 200;
 let levels = 10;
-let tension = -0.5;
+let tension = -0.3;
 let tolerance = 5;
 let lWidth = 0.4;
 let cWidth = 1080;
 let cHeight = 1080;
-let minNumPointsInContour = 3;
+let minNumPointsInContour = 4;
 const imgUrl = 'https://source.unsplash.com/random';
 let img, fileInput;
 
@@ -51,6 +51,10 @@ function init() {
   saveButton.innerHTML = 'Save as PNG';
   saveButton.id = 'save-button';
   controls.appendChild(saveButton);
+  const saveSvgButton = document.createElement('button');
+  saveSvgButton.innerHTML = 'Save as SVG';
+  saveSvgButton.id = 'save-svg-button';
+  controls.appendChild(saveSvgButton);
   const drawButton = document.createElement('button');
   drawButton.innerHTML = 'Draw Lines';
   drawButton.id = 'draw-button';
@@ -72,6 +76,7 @@ function init() {
   };
   newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
   saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
+  saveSvgButton.onclick = () => draw.downloadAsSVG('test');
   drawButton.onclick = () => draw.contourMap();
 
   console.time('Image Load Time');
@@ -171,6 +176,8 @@ const draw = {
     console.timeEnd('Line Drawing Time');
   },
   downloadAsSVG: function (fileName) {
+    console.log('SVG Save Started');
+    console.time('SVG Save Time');
     if (!fileName) {
       fileName = 'paperjs_example.svg';
     }
@@ -183,6 +190,8 @@ const draw = {
     link.download = fileName;
     link.href = url;
     link.click();
+    console.timeEnd('SVG Save Time');
+    console.log('SVG Save Done');
   },
 };
 
