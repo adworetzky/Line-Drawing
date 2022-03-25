@@ -13,7 +13,7 @@ let lWidth = 0.4;
 let cWidth = 1080;
 let cHeight = 1080;
 let minNumPointsInContour = 4;
-const imgUrl = 'https://source.unsplash.com/random';
+const imgUrl = 'https://source.unsplash.com/random/';
 let img, fileInput;
 
 function init() {
@@ -212,7 +212,7 @@ function saveCanvasAsPNG(canvas) {
   link.delete;
 }
 function getNewImage(img) {
-  img.src = 'https://source.unsplash.com/random/';
+  img.src = 'https://source.unsplash.com/random/?n=' + Math.random();
   console.time('Image Load Time');
 }
 
