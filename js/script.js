@@ -63,7 +63,6 @@ function init() {
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
-    paper.setup('c1');
     draw.imgToCanvas();
   };
   img.src = imgUrl;
@@ -98,7 +97,6 @@ const draw = {
     const ctxInput = cInput.getContext('2d');
     const cOutput = document.querySelector('#c1');
     const ctxOutput = cOutput.getContext('2d');
-    paper.project.clear();
 
     console.log('Open CV loaded');
 
@@ -113,7 +111,6 @@ const draw = {
     console.time('Line Drawing Time');
     // loop to perform contour find and draw a difference levels of grey
     let src = cv.imread(cInput);
-    let group = new paper.Group();
     threshArr.forEach((element) => {
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
@@ -147,20 +144,17 @@ const draw = {
         let simplifiedPoints = simplify(element, tolerance);
         sFPoints.push(simplifiedPoints);
       });
+      console.log(sFPoints);
 
-      let currentScale = getScale();
-      let scaledPoints = sFPoints.map(function (nested) {
-        return nested.map(function (element) {
-          return [element[0] * currentScale, element[1] * currentScale];
-        });
-      });
+      // let currentScale = getScale();
+      // let scaledPoints = sFPoints.map(function (nested) {
+      //   return nested.map(function (element) {
+      //     return [element[0] * currentScale, element[1] * currentScale];
+      //   });
+      // });
 
-      scaledPoints.forEach((element) => {
-        let path = new paper.Path(element);
-        path.closed = true;
-        // path.simplify([tolerance]);
-        path.smooth({ type: 'catmull-rom', factor: tension });
-        group.addChild(path);
+      sFPoints.forEach((element) => {
+        // this is where the drawing happens
       });
 
       dst.delete();
@@ -168,28 +162,12 @@ const draw = {
       hierarchy.delete();
     });
     src.delete();
-    group.strokeWidth = lWidth;
-    group.strokeScaling = false;
-    group.miterLimit = 5;
-    group.strokeColor = '#313639 ';
-    paper.view.draw();
     console.timeEnd('Line Drawing Time');
   },
   downloadAsSVG: function (fileName) {
     console.log('SVG Save Started');
     console.time('SVG Save Time');
-    if (!fileName) {
-      fileName = 'paperjs_example.svg';
-    }
-
-    var url =
-      'data:image/svg+xml;utf8,' +
-      encodeURIComponent(paper.project.exportSVG({ asString: true }));
-
-    var link = document.createElement('a');
-    link.download = fileName;
-    link.href = url;
-    link.click();
+    // not done
     console.timeEnd('SVG Save Time');
     console.log('SVG Save Done');
   },
