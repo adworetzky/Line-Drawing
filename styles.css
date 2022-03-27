@@ -28,6 +28,7 @@ main {
   width: 80%;
   display: flex;
   flex-wrap: wrap;
+  flex-shrink: none;
 
   justify-content: space-evenly;
 }
@@ -36,15 +37,16 @@ main {
   display: none;
 }
 #c0 {
-  aspect-ratio: 1/1;
-  max-width: 300px;
   margin: 1% auto;
+  width: 400px;
+  height: auto;
 }
-#c1 {
+#outputSVG {
   background-image: url(./assets/ivory-off-white-paper-texture.jpg);
   background-size: cover;
-  aspect-ratio: 1/1;
-  max-width: 300px;
+  background-repeat: no-repeat;
+  width: 400px;
+  height: auto;
   margin: 1% auto;
 }
 

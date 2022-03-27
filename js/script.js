@@ -6,15 +6,15 @@
 
 let threshLow = 30;
 let threshHigh = 200;
-let levels = 10;
+let levels = 5;
 let tension = -0.3;
-let tolerance = 5;
+let tolerance = 10;
 let lWidth = 0.4;
 let cWidth = 1080;
 let cHeight = 1080;
 let minNumPointsInContour = 4;
 const imgUrl = 'https://source.unsplash.com/random/';
-let img, fileInput;
+let img, fileInput, outputSVG;
 
 function init() {
   const controls = document.createElement('div');
@@ -29,14 +29,14 @@ function init() {
   main.appendChild(img);
   const cInput = document.createElement('canvas');
   cInput.id = 'c0';
-  cInput.width = cWidth;
-  cInput.height = cHeight;
   main.appendChild(cInput);
-  const cOutput = document.createElement('canvas');
-  cOutput.id = 'c1';
-  cOutput.width = cWidth;
-  cOutput.height = cHeight;
-  main.appendChild(cOutput);
+  // const cOutput = document.createElement('canvas');
+  // cOutput.id = 'c1';
+  // cOutput.width = cWidth;
+  // cOutput.height = cHeight;
+  // main.appendChild(cOutput);
+  let outputSVG = SVG().addTo('main');
+  outputSVG.attr('id', 'outputSVG');
 
   const fileInput = document.createElement('input');
   controls.append(fileInput);
@@ -63,7 +63,13 @@ function init() {
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
+    cInput.width = img.width;
+    cInput.height = img.height;
+    outputSVG.viewbox(0, 0, img.width, img.height);
+    outputSVG.attr('preserveAspectRatio', 'xMidYMid meet');
+    console.log(outputSVG);
     draw.imgToCanvas();
+    // var rect = outputSVG.rect(100, 100).attr({ fill: '#f06' });
   };
   img.src = imgUrl;
 
@@ -74,9 +80,9 @@ function init() {
     console.time('Image Load Time');
   };
   newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
-  saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
-  saveSvgButton.onclick = () => draw.downloadAsSVG('test');
-  drawButton.onclick = () => draw.contourMap();
+  saveButton.onclick = () => saveOutputAsPNG();
+  saveSvgButton.onclick = () => draw.downloadAsSVG(outputSVG);
+  drawButton.onclick = () => draw.contourMap(outputSVG);
 
   console.time('Image Load Time');
 }
@@ -84,19 +90,19 @@ const draw = {
   imgToCanvas: function () {
     const c = document.querySelector('#c0');
     const ctx = c.getContext('2d');
-    var scale = Math.max(c.width / img.width, c.height / img.height);
-    // get the top left position of the image
-    var x = c.width / 2 - (img.width / 2) * scale;
-    var y = c.height / 2 - (img.height / 2) * scale;
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+    // var scale = Math.max(c.width / img.width, c.height / img.height);
+    // // get the top left position of the image
+    // var x = c.width / 2 - (img.width / 2) * scale;
+    // var y = c.height / 2 - (img.height / 2) * scale;
+    // ctx.clearRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, img.width, img.height);
+
     // draw.contourMap();
   },
-  contourMap: function () {
+  contourMap: function (outputSVG) {
+    outputSVG.clear();
     const cInput = document.querySelector('#c0');
     const ctxInput = cInput.getContext('2d');
-    const cOutput = document.querySelector('#c1');
-    const ctxOutput = cOutput.getContext('2d');
 
     console.log('Open CV loaded');
 
@@ -154,7 +160,12 @@ const draw = {
       // });
 
       sFPoints.forEach((element) => {
-        // this is where the drawing happens
+        var polyline = outputSVG.polyline(element);
+        polyline.stroke({
+          color: '#000',
+          width: 1,
+        });
+        polyline.fill('none');
       });
 
       dst.delete();
@@ -164,12 +175,21 @@ const draw = {
     src.delete();
     console.timeEnd('Line Drawing Time');
   },
-  downloadAsSVG: function (fileName) {
-    console.log('SVG Save Started');
-    console.time('SVG Save Time');
-    // not done
-    console.timeEnd('SVG Save Time');
-    console.log('SVG Save Done');
+  downloadAsSVG: function (outputSVG) {
+    download(svgDataURL(document.getElementById('outputSVG')));
+
+    function svgDataURL(svg) {
+      var svgAsXML = new XMLSerializer().serializeToString(svg);
+      return 'data:image/svg+xml,' + encodeURIComponent(svgAsXML);
+    }
+
+    function download(dataURL) {
+      var dl = document.createElement('a');
+      document.body.appendChild(dl); // This line makes it work in Firefox.
+      dl.setAttribute('href', dataURL);
+      dl.setAttribute('download', 'test.svg');
+      dl.click();
+    }
   },
 };
 
@@ -178,16 +198,8 @@ function getScale() {
   return scale;
 }
 
-function saveCanvasAsPNG(canvas) {
-  const link = document.createElement('a');
-  let d = new Date(),
-    h = (d.getHours() < 10 ? '0' : '') + d.getHours(),
-    m = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(),
-    s = (d.getSeconds() < 10 ? '0' : '') + d.getSeconds();
-  link.download = 'Drawing-' + h + '.' + m + '.' + s + '.png';
-  link.href = canvas.toDataURL();
-  link.click();
-  link.delete;
+function saveOutputAsPNG() {
+  saveSvgAsPng(document.getElementById('outputSVG'), 'Download.png');
 }
 function getNewImage(img) {
   img.src = 'https://source.unsplash.com/random/?n=' + Math.random();
