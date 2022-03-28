@@ -2,6 +2,9 @@ html {
   width: 99%;
   height: 99%;
   display: flex;
+  background-color: #041c32;
+  color: #ecb365;
+  font-family: monospace, sans-serif;
 }
 body {
   margin: auto;
@@ -13,24 +16,30 @@ body {
   justify-content: center;
 }
 #controls {
-  margin: 5% auto;
+  margin: auto;
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
   align-items: flex-start;
+  width: 20%;
+  padding: 1%;
+  background-color: #064663;
+  border-radius: 10px;
 }
 input,
 button {
   margin: 1%;
+  font-family: monospace;
 }
 main {
   margin: 1% auto;
-  width: 80%;
+  width: 65%;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   flex-shrink: none;
-
+  background-color: #04293a;
   justify-content: space-evenly;
+  border-radius: 10px;
 }
 
 #i0 {
@@ -40,6 +49,7 @@ main {
   margin: 1% auto;
   width: 400px;
   height: auto;
+  border: 1px solid black;
 }
 #outputSVG {
   background-image: url(./assets/ivory-off-white-paper-texture.jpg);
@@ -48,6 +58,7 @@ main {
   width: 400px;
   height: auto;
   margin: 1% auto;
+  border: 1px solid black;
 }
 
 /* #c0,

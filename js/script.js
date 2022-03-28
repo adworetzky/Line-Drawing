@@ -6,13 +6,14 @@
 
 let threshLow = 10;
 let threshHigh = 245;
-let levels = 5;
-let tension = -0.7;
-let tolerance = 5;
+let levels = 10;
+let tension = 0.5;
+let tolerance = 3;
 let lWidth = 1;
 let minNumPointsInContour = 2;
 let margin = 150;
 let minPathLength = 2;
+let miterLimit = 10;
 
 const imgUrl = 'https://source.unsplash.com/random/';
 let img, fileInput, outputSVG, tensionSlider;
@@ -130,6 +131,7 @@ function init() {
     img.src = URL.createObjectURL(fileInput.files[0]);
     console.log('File Uploaded');
     console.time('Image Load Time');
+    newImageStatus = true;
   };
   marginSlider.onchange = function () {
     margin = marginSlider.value;
@@ -190,6 +192,8 @@ const draw = {
       // find contours and setup
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
+      let ksize = new cv.Size(15, 15);
+      cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
       cv.threshold(
         dst,
         dst,
@@ -218,12 +222,16 @@ const draw = {
           points[j].push(p);
         }
       }
+      // filter out contours with less than minNumPointsInContour (usually < 4)
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
       });
+      console.log(fPoints);
+      // filter out points that fall between margin and SVG edge
       let mFPoints = fPoints.filter(
         (element) => element[0] >= marginSlider.value
       );
+      // simplify points before drawing
       let sFPoints = [];
       mFPoints.forEach((element) => {
         let simplifiedPoints = simplify(element, toleranceSlider.value, true);
@@ -246,7 +254,12 @@ const draw = {
       contours.delete();
       hierarchy.delete();
     });
-    pathGroup.stroke({ color: '#000', width: lWidthSlider.value });
+    pathGroup.stroke({
+      color: '#5980d4',
+      linejoin: 'miter',
+      miterlimit: miterLimit,
+      width: lWidthSlider.value,
+    });
     pathGroup.fill('none');
     src.delete();
     console.timeEnd('Line Drawing Time');
