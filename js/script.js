@@ -4,19 +4,19 @@
 // simplify/smooth (simplify js)
 // draw catmull rom splines though said vertecies (switched to svg.js)
 
-let threshLow = 50;
-let threshHigh = 255;
-let levels = 10;
+let threshLow = 10;
+let threshHigh = 245;
+let levels = 5;
 let tension = -0.7;
-let tolerance = 10;
+let tolerance = 5;
 let lWidth = 1;
-let cWidth = 1080;
-let cHeight = 1080;
 let minNumPointsInContour = 2;
 let margin = 150;
+let minPathLength = 2;
+
 const imgUrl = 'https://source.unsplash.com/random/';
 let img, fileInput, outputSVG, tensionSlider;
-let newImageStatus = false;
+let newImageStatus = true;
 
 function init() {
   // let presets = fetch('./js/presets.json')
@@ -58,15 +58,18 @@ function init() {
   saveSvgButton.innerHTML = 'Save as SVG';
   saveSvgButton.id = 'save-svg-button';
   controls.appendChild(saveSvgButton);
-  const drawButton = document.createElement('button');
-  drawButton.innerHTML = 'Draw Lines';
-  drawButton.id = 'draw-button';
-  controls.appendChild(drawButton);
-  tensionSlider = makeSlider('tension-slider', -2, 2, 0.1, tension, 'Tension');
+  tensionSlider = makeSlider(
+    'tension-slider',
+    -10,
+    10,
+    0.25,
+    tension,
+    'Tension'
+  );
   toleranceSlider = makeSlider(
     'tolerance-slider',
-    -20,
-    20,
+    0,
+    50,
     0.5,
     tolerance,
     'Tolerance'
@@ -97,6 +100,18 @@ function init() {
     lWidth,
     'Stroke Width'
   );
+  minPathLengthSlider = makeSlider(
+    'min-path-length-slider',
+    0,
+    100,
+    1,
+    minPathLength,
+    'Minimum Path Length'
+  );
+  const drawButton = document.createElement('button');
+  drawButton.innerHTML = 'Draw Lines';
+  drawButton.id = 'draw-button';
+  controls.appendChild(drawButton);
 
   // Listeners
   img.onload = function () {
@@ -151,6 +166,7 @@ const draw = {
     outputSVG.clear();
     const cInput = document.querySelector('#c0');
     const ctxInput = cInput.getContext('2d');
+    let pathGroup = outputSVG.group();
 
     console.log('Open CV loaded');
     // set up threshold divisions
@@ -167,6 +183,8 @@ const draw = {
     console.log('Curve Draw Started');
     console.time('Line Drawing Time');
     let src = cv.imread(cInput);
+
+    let pathLengthCounter = 0;
     // loop over the different threshold divisions
     threshArr.forEach((element) => {
       // find contours and setup
@@ -195,27 +213,22 @@ const draw = {
         points[j] = [];
         for (let k = 0; k < ci.data32S.length; k += 2) {
           let p = [];
-          p[0] = ci.data32S[k];
-          p[1] = ci.data32S[k + 1];
+          p[0] = parseInt(ci.data32S[k]);
+          p[1] = parseInt(ci.data32S[k + 1]);
           points[j].push(p);
         }
       }
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
       });
-
+      let mFPoints = fPoints.filter(
+        (element) => element[0] >= marginSlider.value
+      );
       let sFPoints = [];
-      fPoints.forEach((element) => {
-        let simplifiedPoints = simplify(element, toleranceSlider.value, false);
+      mFPoints.forEach((element) => {
+        let simplifiedPoints = simplify(element, toleranceSlider.value, true);
         sFPoints.push(simplifiedPoints);
       });
-
-      // let currentScale = getScale();
-      // let scaledPoints = sFPoints.map(function (nested) {
-      //   return nested.map(function (element) {
-      //     return [element[0] * currentScale, element[1] * currentScale];
-      //   });
-      // });
 
       // main svg line drawing loop
       sFPoints.forEach((element) => {
@@ -223,14 +236,18 @@ const draw = {
         let drawnPath = outputSVG.path(
           catmullRomInterpolation(element.flat(), tensionSlider.value)
         );
-        drawnPath.stroke({ color: '#000', width: lWidthSlider.value });
-        drawnPath.fill('none');
+        pathGroup.add(drawnPath);
+        if (drawnPath.length() <= minPathLengthSlider.value) {
+          drawnPath.remove();
+        }
       });
 
       dst.delete();
       contours.delete();
       hierarchy.delete();
     });
+    pathGroup.stroke({ color: '#000', width: lWidthSlider.value });
+    pathGroup.fill('none');
     src.delete();
     console.timeEnd('Line Drawing Time');
   },
@@ -270,11 +287,6 @@ function makeSlider(id, min, max, step, value, labelText) {
     sliderLabel.innerHTML = labelText + ' : ' + slider.value;
   };
   return slider;
-}
-
-function getScale() {
-  let scale = document.querySelector('#c1').offsetWidth / cWidth;
-  return scale;
 }
 
 function saveOutputAsPNG() {
