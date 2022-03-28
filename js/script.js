@@ -65,14 +65,14 @@ function init() {
   tensionSlider = makeSlider('tension-slider', -2, 2, 0.1, tension, 'Tension');
   toleranceSlider = makeSlider(
     'tolerance-slider',
-    -10,
-    10,
+    -20,
+    20,
     0.5,
     tolerance,
     'Tolerance'
   );
   levelsSlider = makeSlider('levels-slider', 1, 100, 1, levels, 'Levels');
-  marginSlider = makeSlider('margin-slider', 0, 500, 1, margin, 'Margin');
+  marginSlider = makeSlider('margin-slider', 1, 500, 1, margin, 'Margin');
   thresholdLowSlider = makeSlider(
     'threshold-low-slider',
     1,
@@ -89,7 +89,16 @@ function init() {
     threshHigh,
     'Threshold High'
   );
+  lWidthSlider = makeSlider(
+    'lwidth-slider',
+    0.1,
+    5,
+    0.1,
+    lWidth,
+    'Stroke Width'
+  );
 
+  // Listeners
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
@@ -122,12 +131,12 @@ const draw = {
   imgToCanvas: function (outputSVG) {
     const c = document.querySelector('#c0');
     const ctx = c.getContext('2d');
-    var scale = Math.max(c.width / img.width, c.height / img.height);
-    // get the top left position of the image
-    var x = c.width / 2 - (img.width / 2) * scale;
-    var y = c.height / 2 - (img.height / 2) * scale;
+    // var scale = Math.max(c.width / img.width, c.height / img.height);
+    // // get the top left position of the image
+    // var x = c.width / 2 - (img.width / 2) * scale;
+    // var y = c.height / 2 - (img.height / 2) * scale;
     ctx.clearRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+    ctx.drawImage(img, 0, 0, img.width, img.height);
     ctx.lineWidth = margin * 2;
     ctx.strokeStyle = 'white';
     ctx.rect(0, 0, c.width, c.height);
@@ -144,7 +153,7 @@ const draw = {
     const ctxInput = cInput.getContext('2d');
 
     console.log('Open CV loaded');
-
+    // set up threshold divisions
     let inc =
       (parseInt(thresholdHighSlider.value) -
         parseInt(thresholdLowSlider.value)) /
@@ -157,9 +166,10 @@ const draw = {
     }
     console.log('Curve Draw Started');
     console.time('Line Drawing Time');
-    // loop to perform contour find and draw a difference levels of grey
     let src = cv.imread(cInput);
+    // loop over the different threshold divisions
     threshArr.forEach((element) => {
+      // find contours and setup
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
       cv.threshold(
@@ -178,6 +188,7 @@ const draw = {
         cv.RETR_CCOMP,
         cv.CHAIN_APPROX_SIMPLE
       );
+      // get contour points and push to array
       let points = [];
       for (let j = 0; j < contours.size(); ++j) {
         const ci = contours.get(j);
@@ -206,12 +217,13 @@ const draw = {
       //   });
       // });
 
+      // main svg line drawing loop
       sFPoints.forEach((element) => {
-        // console.log(solve(element.flat(), tension));
+        // console.log(catmullRomInterpolation(element.flat(), tension));
         let drawnPath = outputSVG.path(
-          solve(element.flat(), tensionSlider.value)
+          catmullRomInterpolation(element.flat(), tensionSlider.value)
         );
-        drawnPath.stroke({ color: '#000', width: lWidth });
+        drawnPath.stroke({ color: '#000', width: lWidthSlider.value });
         drawnPath.fill('none');
       });
 
@@ -274,26 +286,26 @@ function getNewImage(img) {
   console.time('Image Load Time');
 }
 
-function solve(data, k) {
+function catmullRomInterpolation(points, k) {
   if (k == null) k = 1;
 
-  var size = data.length;
+  var size = points.length;
   var last = size - 4;
 
-  var path = 'M' + [data[0], data[1]];
+  var path = 'M' + [points[0], points[1]];
 
   for (var i = 0; i < size - 2; i += 2) {
-    var x0 = i ? data[i - 2] : data[0];
-    var y0 = i ? data[i - 1] : data[1];
+    var x0 = i ? points[i - 2] : points[0];
+    var y0 = i ? points[i - 1] : points[1];
 
-    var x1 = data[i + 0];
-    var y1 = data[i + 1];
+    var x1 = points[i + 0];
+    var y1 = points[i + 1];
 
-    var x2 = data[i + 2];
-    var y2 = data[i + 3];
+    var x2 = points[i + 2];
+    var y2 = points[i + 3];
 
-    var x3 = i !== last ? data[i + 4] : x2;
-    var y3 = i !== last ? data[i + 5] : y2;
+    var x3 = i !== last ? points[i + 4] : x2;
+    var y3 = i !== last ? points[i + 5] : y2;
 
     var cp1x = x1 + ((x2 - x0) / 6) * k;
     var cp1y = y1 + ((y2 - y0) / 6) * k;
