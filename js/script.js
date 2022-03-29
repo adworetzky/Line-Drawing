@@ -3,7 +3,7 @@
 // use blob detection to generate same brightness iso lines from threshold (DONE)
 // simplify/smooth (simplify js)
 // draw catmull rom splines though said vertecies (switched to svg.js)
-//to do, add rough.js support
+//to do, add rough.js
 
 let threshLow = 1;
 let threshHigh = 255;
@@ -237,22 +237,6 @@ const draw = {
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
       });
-      // filter out points that fall between margin and SVG edge
-      // let mFPoints = fPoints.filter((element) => {
-      //   return element.filter((nestedElement) => {
-      //     if (
-      //       nestedElement[0] >= marginSlider.value * 2 &&
-      //       nestedElement[0] <=
-      //         outputSVG.viewbox().width - marginSlider.value * 2 &&
-      //       nestedElement[1] >= marginSlider.value * 2 &&
-      //       nestedElement[1] <=
-      //         outputSVG.viewbox().height - marginSlider.value * 2
-      //     ) {
-      //       console.log('triggered');
-      //       return true;
-      //     }
-      //   });
-      // });
 
       // simplify points before drawing
       let sFPoints = [];
