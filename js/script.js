@@ -14,7 +14,7 @@ let lWidth = 1;
 let minNumPointsInContour = 3;
 let margin = 150;
 let marginGrow = 30;
-let minPathLength = 2;
+let minPathLength = 10;
 let miterLimit = 5;
 
 const imgUrl = 'https://source.unsplash.com/random/';
@@ -199,7 +199,7 @@ const draw = {
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
 
-      cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
+      // cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
       cv.threshold(
         dst,
         dst,
@@ -255,7 +255,8 @@ const draw = {
         // console.log(catmullRomInterpolation(element.flat(), tension));
         let drawnPath = catmullRomInterpolation(
           element.flat(),
-          tensionSlider.value
+          tensionSlider.value,
+          outputSVG
         );
         pathArray.push(drawnPath);
       });
@@ -266,19 +267,19 @@ const draw = {
 
     pathArray.forEach((element) => {
       let currentPath = outputSVG.path(element);
-      if (currentPath.length > minPathLengthSlider.value) {
+      if (currentPath.length() >= minPathLengthSlider.value) {
         pathLengthCounter += currentPath.length();
         pathGroup.add(currentPath);
       }
     });
     console.log('Total Path Length:' + pathLengthCounter);
+    outputSVG.fill('none');
     pathGroup.stroke({
-      color: '#5980d4',
+      color: '#313639',
       linejoin: 'miter',
       miterlimit: miterLimit,
       width: lWidthSlider.value,
     });
-    pathGroup.fill('none');
 
     // let rect = outputSVG
     //   .rect(
@@ -337,7 +338,7 @@ function getNewImage(img) {
   console.time('Image Load Time');
 }
 
-function catmullRomInterpolation(points, k) {
+function catmullRomInterpolation(points, k, outputSVG) {
   if (k == null) k = 1;
 
   var size = points.length;
@@ -363,8 +364,17 @@ function catmullRomInterpolation(points, k) {
 
     var cp2x = x2 - ((x3 - x1) / 6) * k;
     var cp2y = y2 - ((y3 - y1) / 6) * k;
-
-    path += 'C' + [cp1x, cp1y, cp2x, cp2y, x2, y2];
+    if (x2 <= marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else if (y2 <= marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else if (x2 >= outputSVG.viewbox().width - marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else if (y2 >= outputSVG.viewbox().height - marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else {
+      path += 'C' + [cp1x, cp1y, cp2x, cp2y, x2, y2];
+    }
   }
   // path += 'Z';
   return path;
