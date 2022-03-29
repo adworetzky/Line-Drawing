@@ -226,7 +226,6 @@ const draw = {
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
       });
-      console.log(fPoints);
       // filter out points that fall between margin and SVG edge
       let mFPoints = fPoints.filter(
         (element) => element[0] >= marginSlider.value
@@ -261,6 +260,16 @@ const draw = {
       width: lWidthSlider.value,
     });
     pathGroup.fill('none');
+    let clipWidth = outputSVG.width - marginSlider.value / 2;
+    let clipHeight = outputSVG.height - marginSlider.value / 2;
+
+    // let rect = outputSVG
+    //   .rect(
+    //     outputSVG.viewbox().width - marginSlider.value,
+    //     outputSVG.viewbox().height - marginSlider.value
+    //   )
+    //   .move(marginSlider.value, marginSlider.value);
+    // pathGroup.clipWith(rect);
     src.delete();
     console.timeEnd('Line Drawing Time');
   },
