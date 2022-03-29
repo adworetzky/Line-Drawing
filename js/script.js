@@ -3,17 +3,19 @@
 // use blob detection to generate same brightness iso lines from threshold (DONE)
 // simplify/smooth (simplify js)
 // draw catmull rom splines though said vertecies (switched to svg.js)
+//to do, add rough.js support
 
-let threshLow = 10;
-let threshHigh = 245;
-let levels = 10;
-let tension = 0.5;
+let threshLow = 1;
+let threshHigh = 255;
+let levels = 13;
+let tension = -0.5;
 let tolerance = 3;
 let lWidth = 1;
-let minNumPointsInContour = 2;
+let minNumPointsInContour = 3;
 let margin = 150;
+let marginGrow = 30;
 let minPathLength = 2;
-let miterLimit = 10;
+let miterLimit = 5;
 
 const imgUrl = 'https://source.unsplash.com/random/';
 let img, fileInput, outputSVG, tensionSlider;
@@ -185,14 +187,14 @@ const draw = {
     console.log('Curve Draw Started');
     console.time('Line Drawing Time');
     let src = cv.imread(cInput);
-
+    let ksize = new cv.Size(25, 25);
     let pathLengthCounter = 0;
     // loop over the different threshold divisions
     threshArr.forEach((element) => {
       // find contours and setup
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-      let ksize = new cv.Size(15, 15);
+
       cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
       cv.threshold(
         dst,
@@ -217,9 +219,18 @@ const draw = {
         points[j] = [];
         for (let k = 0; k < ci.data32S.length; k += 2) {
           let p = [];
-          p[0] = parseInt(ci.data32S[k]);
-          p[1] = parseInt(ci.data32S[k + 1]);
-          points[j].push(p);
+          if (
+            parseInt(ci.data32S[k]) >= parseInt(marginSlider.value) &&
+            parseInt(ci.data32S[k]) <=
+              outputSVG.viewbox().width - parseInt(marginSlider.value) &&
+            parseInt(ci.data32S[k + 1]) >= parseInt(marginSlider.value) &&
+            parseInt(ci.data32S[k + 1]) <=
+              outputSVG.viewbox().height - parseInt(marginSlider.value)
+          ) {
+            p[0] = parseInt(ci.data32S[k]);
+            p[1] = parseInt(ci.data32S[k + 1]);
+            points[j].push(p);
+          }
         }
       }
       // filter out contours with less than minNumPointsInContour (usually < 4)
@@ -227,12 +238,25 @@ const draw = {
         return element.length >= minNumPointsInContour;
       });
       // filter out points that fall between margin and SVG edge
-      let mFPoints = fPoints.filter(
-        (element) => element[0] >= marginSlider.value
-      );
+      // let mFPoints = fPoints.filter((element) => {
+      //   return element.filter((nestedElement) => {
+      //     if (
+      //       nestedElement[0] >= marginSlider.value * 2 &&
+      //       nestedElement[0] <=
+      //         outputSVG.viewbox().width - marginSlider.value * 2 &&
+      //       nestedElement[1] >= marginSlider.value * 2 &&
+      //       nestedElement[1] <=
+      //         outputSVG.viewbox().height - marginSlider.value * 2
+      //     ) {
+      //       console.log('triggered');
+      //       return true;
+      //     }
+      //   });
+      // });
+
       // simplify points before drawing
       let sFPoints = [];
-      mFPoints.forEach((element) => {
+      fPoints.forEach((element) => {
         let simplifiedPoints = simplify(element, toleranceSlider.value, true);
         sFPoints.push(simplifiedPoints);
       });
@@ -243,9 +267,11 @@ const draw = {
         let drawnPath = outputSVG.path(
           catmullRomInterpolation(element.flat(), tensionSlider.value)
         );
+        pathLengthCounter += drawnPath.length();
         pathGroup.add(drawnPath);
         if (drawnPath.length() <= minPathLengthSlider.value) {
           drawnPath.remove();
+          pathLengthCounter -= drawnPath.length();
         }
       });
 
@@ -253,6 +279,7 @@ const draw = {
       contours.delete();
       hierarchy.delete();
     });
+    console.log('Total Path Length:' + pathLengthCounter);
     pathGroup.stroke({
       color: '#5980d4',
       linejoin: 'miter',
@@ -260,13 +287,11 @@ const draw = {
       width: lWidthSlider.value,
     });
     pathGroup.fill('none');
-    let clipWidth = outputSVG.width - marginSlider.value / 2;
-    let clipHeight = outputSVG.height - marginSlider.value / 2;
 
     // let rect = outputSVG
     //   .rect(
-    //     outputSVG.viewbox().width - marginSlider.value,
-    //     outputSVG.viewbox().height - marginSlider.value
+    //     outputSVG.viewbox().width - marginSlider.value * 2,
+    //     outputSVG.viewbox().height - marginSlider.value * 2
     //   )
     //   .move(marginSlider.value, marginSlider.value);
     // pathGroup.clipWith(rect);
