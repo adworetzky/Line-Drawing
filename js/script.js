@@ -5,10 +5,10 @@
 // draw catmull rom splines though said vertecies (switched to svg.js)
 //to do, add rough.js
 
-let threshLow = 1;
+let threshLow = 0;
 let threshHigh = 255;
-let levels = 13;
-let tension = -0.5;
+let levels = 5;
+let tension = 1;
 let tolerance = 3;
 let lWidth = 1;
 let minNumPointsInContour = 3;
@@ -81,7 +81,7 @@ function init() {
   marginSlider = makeSlider('margin-slider', 1, 500, 1, margin, 'Margin');
   thresholdLowSlider = makeSlider(
     'threshold-low-slider',
-    1,
+    0,
     255,
     1,
     threshLow,
@@ -171,7 +171,7 @@ const draw = {
     const cInput = document.querySelector('#c0');
     const ctxInput = cInput.getContext('2d');
     let pathGroup = outputSVG.group();
-
+    let pathArray = [];
     console.log('Open CV loaded');
     // set up threshold divisions
     let inc =
@@ -184,6 +184,10 @@ const draw = {
       tInc = tInc + inc;
       threshArr.push(tInc);
     }
+    if (threshArr.length == 1) {
+      threshArr[0] = 255 / 2;
+    }
+    console.log(threshArr);
     console.log('Curve Draw Started');
     console.time('Line Drawing Time');
     let src = cv.imread(cInput);
@@ -219,20 +223,21 @@ const draw = {
         points[j] = [];
         for (let k = 0; k < ci.data32S.length; k += 2) {
           let p = [];
-          if (
-            parseInt(ci.data32S[k]) >= parseInt(marginSlider.value) &&
-            parseInt(ci.data32S[k]) <=
-              outputSVG.viewbox().width - parseInt(marginSlider.value) &&
-            parseInt(ci.data32S[k + 1]) >= parseInt(marginSlider.value) &&
-            parseInt(ci.data32S[k + 1]) <=
-              outputSVG.viewbox().height - parseInt(marginSlider.value)
-          ) {
-            p[0] = parseInt(ci.data32S[k]);
-            p[1] = parseInt(ci.data32S[k + 1]);
-            points[j].push(p);
-          }
+          // if (
+          //   parseInt(ci.data32S[k]) >= parseInt(marginSlider.value) &&
+          //   parseInt(ci.data32S[k]) <=
+          //     outputSVG.viewbox().width - parseInt(marginSlider.value) &&
+          //   parseInt(ci.data32S[k + 1]) >= parseInt(marginSlider.value) &&
+          //   parseInt(ci.data32S[k + 1]) <=
+          //     outputSVG.viewbox().height - parseInt(marginSlider.value)
+          // ) {
+          p[0] = parseInt(ci.data32S[k]);
+          p[1] = parseInt(ci.data32S[k + 1]);
+          points[j].push(p);
+          // }
         }
       }
+
       // filter out contours with less than minNumPointsInContour (usually < 4)
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
@@ -245,23 +250,26 @@ const draw = {
         sFPoints.push(simplifiedPoints);
       });
 
-      // main svg line drawing loop
+      // push parsed svg paths to new array
       sFPoints.forEach((element) => {
         // console.log(catmullRomInterpolation(element.flat(), tension));
-        let drawnPath = outputSVG.path(
-          catmullRomInterpolation(element.flat(), tensionSlider.value)
+        let drawnPath = catmullRomInterpolation(
+          element.flat(),
+          tensionSlider.value
         );
-        pathLengthCounter += drawnPath.length();
-        pathGroup.add(drawnPath);
-        if (drawnPath.length() <= minPathLengthSlider.value) {
-          drawnPath.remove();
-          pathLengthCounter -= drawnPath.length();
-        }
+        pathArray.push(drawnPath);
       });
-
       dst.delete();
       contours.delete();
       hierarchy.delete();
+    });
+
+    pathArray.forEach((element) => {
+      let currentPath = outputSVG.path(element);
+      if (currentPath.length > minPathLengthSlider.value) {
+        pathLengthCounter += currentPath.length();
+        pathGroup.add(currentPath);
+      }
     });
     console.log('Total Path Length:' + pathLengthCounter);
     pathGroup.stroke({
@@ -358,8 +366,16 @@ function catmullRomInterpolation(points, k) {
 
     path += 'C' + [cp1x, cp1y, cp2x, cp2y, x2, y2];
   }
-  path += 'Z';
+  // path += 'Z';
   return path;
+}
+function getRandomColor() {
+  var letters = '0123456789ABCDEF';
+  var color = '#';
+  for (var i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color;
 }
 
 cv['onRuntimeInitialized'] = () => {
