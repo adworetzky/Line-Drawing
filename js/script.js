@@ -7,14 +7,14 @@
 
 let threshLow = 0;
 let threshHigh = 255;
-let levels = 5;
+let levels = 10;
 let tension = 1;
-let tolerance = 3;
-let lWidth = 1;
-let minNumPointsInContour = 3;
-let margin = 150;
+let tolerance = 5;
+let lWidth = 0.5;
+let minNumPointsInContour = 4;
+let margin = 80;
 let marginGrow = 30;
-let minPathLength = 10;
+let minPathLength = 50;
 let miterLimit = 5;
 
 const imgUrl = 'https://source.unsplash.com/random/';
@@ -180,7 +180,7 @@ const draw = {
       levelsSlider.value;
     let tInc = parseInt(thresholdLowSlider.value);
     let threshArr = [];
-    for (let i = 0; i < levelsSlider.value; i++) {
+    for (let i = 0; i < levelsSlider.value - 1; i++) {
       tInc = tInc + inc;
       threshArr.push(tInc);
     }
@@ -224,12 +224,12 @@ const draw = {
         for (let k = 0; k < ci.data32S.length; k += 2) {
           let p = [];
           // if (
-          //   parseInt(ci.data32S[k]) >= parseInt(marginSlider.value) &&
+          //   parseInt(ci.data32S[k]) >= marginSlider.value &&
           //   parseInt(ci.data32S[k]) <=
-          //     outputSVG.viewbox().width - parseInt(marginSlider.value) &&
-          //   parseInt(ci.data32S[k + 1]) >= parseInt(marginSlider.value) &&
+          //     outputSVG.viewbox().width - marginSlider.value &&
+          //   parseInt(ci.data32S[k + 1]) >= marginSlider.value &&
           //   parseInt(ci.data32S[k + 1]) <=
-          //     outputSVG.viewbox().height - parseInt(marginSlider.value)
+          //     outputSVG.viewbox().height - marginSlider.value
           // ) {
           p[0] = parseInt(ci.data32S[k]);
           p[1] = parseInt(ci.data32S[k + 1]);
@@ -250,8 +250,19 @@ const draw = {
         sFPoints.push(simplifiedPoints);
       });
 
+      // this still feels broken. Supposed to filter out all points outside margin but doesnt seem to work
+      let fSFPoints = sFPoints.filter(function (element, index) {
+        return element.filter(function (nestedElement, nestedIndex) {
+          nestedElement[0] >= marginSlider.value &&
+            nestedElement[0] <=
+              outputSVG.viewbox().width - marginSlider.value &&
+            nestedElement[1] >= marginSlider.value &&
+            nestedElement[1] <= outputSVG.viewbox().height - marginSlider.value;
+        });
+      });
+
       // push parsed svg paths to new array
-      sFPoints.forEach((element) => {
+      fSFPoints.forEach((element) => {
         // console.log(catmullRomInterpolation(element.flat(), tension));
         let drawnPath = catmullRomInterpolation(
           element.flat(),
@@ -274,6 +285,7 @@ const draw = {
     });
     console.log('Total Path Length:' + pathLengthCounter);
     outputSVG.fill('none');
+    outputSVG.stroke('none');
     pathGroup.stroke({
       color: '#313639',
       linejoin: 'miter',
@@ -376,7 +388,7 @@ function catmullRomInterpolation(points, k, outputSVG) {
       path += 'C' + [cp1x, cp1y, cp2x, cp2y, x2, y2];
     }
   }
-  // path += 'Z';
+  path += 'Z';
   return path;
 }
 function getRandomColor() {
