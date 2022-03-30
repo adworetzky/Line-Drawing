@@ -36,11 +36,7 @@ let img,
 let newImageStatus = true;
 
 function init() {
-  // let presets = fetch('./js/presets.json')
-  //   .then((response) => {
-  //     return response.json();
-  //   })
-  //   .then((data) => console.log(data.presets[0].name));
+  // Set Up UI
   const uiWrapper = document.createElement('div');
   uiWrapper.id = 'uiWrapper';
   document.body.appendChild(uiWrapper);
@@ -52,7 +48,6 @@ function init() {
   uiWrapper.appendChild(sizeControls);
   const main = document.createElement('main');
   document.body.appendChild(main);
-
   img = document.createElement('img');
   img.id = 'i0';
   img.crossOrigin = 'Anonymous';
@@ -62,7 +57,6 @@ function init() {
   main.appendChild(cInput);
   let outputSVG = SVG().addTo('main');
   outputSVG.attr('id', 'outputSVG');
-
   const fileInput = document.createElement('input');
   drawingControls.append(fileInput);
   fileInput.classList.add('uiElement');
@@ -219,6 +213,7 @@ function init() {
   console.time('Image Load Time');
 }
 const draw = {
+  // draw image to canvas for pixel data can be retrieved
   imgToCanvas: function (outputSVG) {
     const c = document.querySelector('#c0');
     const ctx = c.getContext('2d');
@@ -238,10 +233,10 @@ const draw = {
       newImageStatus = false;
     }
   },
+  // Find Contours and clean data
   contourMap: function (outputSVG) {
     outputSVG.clear();
     const cInput = document.querySelector('#c0');
-    const ctxInput = cInput.getContext('2d');
     let pathGroup = outputSVG.group();
     let pathArray = [];
     console.log('Open CV loaded');
@@ -259,19 +254,16 @@ const draw = {
     if (threshArr.length == 1) {
       threshArr[0] = 255 / 2;
     }
-    console.log(threshArr);
     console.log('Curve Draw Started');
     console.time('Line Drawing Time');
     let src = cv.imread(cInput);
     let ksize = new cv.Size(25, 25);
-    let pathLengthCounter = 0;
+
     // loop over the different threshold divisions
     threshArr.forEach((element) => {
       // find contours and setup
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-
-      // cv.GaussianBlur(dst, dst, ksize, 0, 0, cv.BORDER_DEFAULT);
       cv.threshold(
         dst,
         dst,
@@ -288,6 +280,7 @@ const draw = {
         cv.RETR_CCOMP,
         cv.CHAIN_APPROX_SIMPLE
       );
+
       // get contour points and push to array
       let points = [];
       for (let j = 0; j < contours.size(); ++j) {
@@ -341,7 +334,6 @@ const draw = {
 
       // push parsed svg paths to new array
       fSFPoints.forEach((element) => {
-        // console.log(catmullRomInterpolation(element.flat(), tension));
         let drawnPath = catmullRomInterpolation(
           element.flat(),
           tensionSlider.value,
@@ -353,15 +345,15 @@ const draw = {
       contours.delete();
       hierarchy.delete();
     });
-
+    src.delete();
+    //
     pathArray.forEach((element) => {
       let currentPath = outputSVG.path(element);
       if (currentPath.length() >= minPathLengthSlider.value) {
-        // pathLengthCounter += currentPath.length();
         pathGroup.add(currentPath);
       }
     });
-    // console.log('Total Path Length:' + pathLengthCounter);
+    // set styles
     outputSVG.fill('none');
     outputSVG.stroke('none');
     pathGroup.stroke({
@@ -370,7 +362,7 @@ const draw = {
       miterlimit: miterLimit,
       width: lWidthSlider.value,
     });
-
+    // clip SVG
     let rect = outputSVG
       .rect(
         outputSVG.viewbox().width - marginSlider.value * 2,
@@ -378,7 +370,7 @@ const draw = {
       )
       .move(marginSlider.value, marginSlider.value);
     pathGroup.clipWith(rect);
-    src.delete();
+
     console.timeEnd('Line Drawing Time');
   },
   downloadAsSVG: function (outputSVG) {
@@ -473,5 +465,4 @@ function catmullRomInterpolation(points, k, outputSVG) {
 
 cv['onRuntimeInitialized'] = () => {
   window.onload = init();
-  // window.onresize = init();
 };
