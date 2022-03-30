@@ -2,6 +2,9 @@ html {
   width: 99%;
   height: 99%;
   display: flex;
+  background-color: #041c32;
+  color: #ecb365;
+  font-family: monospace, sans-serif;
 }
 body {
   margin: auto;
@@ -12,39 +15,67 @@ body {
   flex-direction: column;
   justify-content: center;
 }
-#controls {
-  margin: 5% auto;
+#uiWrapper {
+  margin: 1%;
+  width: 20%;
+  height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  justify-content: center;
+}
+#drawingControls {
+  margin: auto;
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
   align-items: flex-start;
+  width: 100%;
+  padding: 1%;
+  background-color: #064663;
+  border-radius: 10px;
+}
+#sizeControls {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  width: 100%;
+  padding: 1%;
+  background-color: #064663;
+  border-radius: 10px;
 }
 input,
 button {
   margin: 1%;
+  font-family: monospace;
 }
 main {
   margin: 1% auto;
-  width: 80%;
+  width: 65%;
   display: flex;
   flex-wrap: wrap;
-
+  flex-shrink: none;
+  background-color: #04293a;
   justify-content: space-evenly;
+  border-radius: 10px;
 }
 
 #i0 {
   display: none;
 }
 #c0 {
-  aspect-ratio: 1/1;
-  max-width: 300px;
   margin: 1% auto;
+  width: 400px;
+  height: auto;
 }
-#c1 {
+#outputSVG {
   background-image: url(./assets/ivory-off-white-paper-texture.jpg);
   background-size: cover;
-  aspect-ratio: 1/1;
-  max-width: 300px;
+  background-repeat: no-repeat;
+  width: 400px;
+  height: auto;
   margin: 1% auto;
 }
 

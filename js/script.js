@@ -1,70 +1,179 @@
 // four steps
-// start with real image (DONE)
-// use blob detection to generate same brightness iso lines (DONE)
-// simplify/smooth (doing it manually)
-// draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
+// start with image (DONE)
+// use blob detection to generate same brightness iso lines from threshold (DONE)
+// simplify/smooth (simplify js)
+// draw catmull rom splines though said vertecies (switched to svg.js)
+//to do, add rough.js
 
-let threshLow = 30;
-let threshHigh = 200;
-let levels = 10;
-let tension = -0.3;
-let tolerance = 5;
-let lWidth = 0.4;
-let cWidth = 1080;
-let cHeight = 1080;
+let threshLow = 0;
+let threshHigh = 255;
+let levels = 11;
+let tension = -15;
+let tolerance = 1.5;
+let lWidth = 0.5;
 let minNumPointsInContour = 4;
-const imgUrl = 'https://source.unsplash.com/random';
-let img, fileInput;
+let margin = 50;
+let marginGrow = 30;
+let minPathLength = 1000;
+let miterLimit = 5;
+let searchTerm = 'architecture';
+
+const imgUrl = 'https://source.unsplash.com/random/?' + searchTerm;
+let img,
+  fileInput,
+  outputSVG,
+  tensionSlider,
+  toleranceSlider,
+  lWidthSlider,
+  minNumPointsInContourSlider,
+  marginSlider,
+  minPathLengthSlider,
+  thresholdLowSlider,
+  thresholdHighSlider,
+  levelsSlider,
+  sizeSelect,
+  qualitySelect;
+let newImageStatus = true;
 
 function init() {
-  const controls = document.createElement('div');
-  controls.id = 'controls';
-  document.body.appendChild(controls);
+  // Set Up UI
+  const uiWrapper = document.createElement('div');
+  uiWrapper.id = 'uiWrapper';
+  document.body.appendChild(uiWrapper);
+  const drawingControls = document.createElement('div');
+  drawingControls.id = 'drawingControls';
+  uiWrapper.appendChild(drawingControls);
+  const sizeControls = document.createElement('div');
+  sizeControls.id = 'sizeControls';
+  uiWrapper.appendChild(sizeControls);
   const main = document.createElement('main');
   document.body.appendChild(main);
-
   img = document.createElement('img');
   img.id = 'i0';
   img.crossOrigin = 'Anonymous';
   main.appendChild(img);
   const cInput = document.createElement('canvas');
   cInput.id = 'c0';
-  cInput.width = cWidth;
-  cInput.height = cHeight;
   main.appendChild(cInput);
-  const cOutput = document.createElement('canvas');
-  cOutput.id = 'c1';
-  cOutput.width = cWidth;
-  cOutput.height = cHeight;
-  main.appendChild(cOutput);
-
+  let outputSVG = SVG().addTo('main');
+  outputSVG.attr('id', 'outputSVG');
   const fileInput = document.createElement('input');
-  controls.append(fileInput);
+  drawingControls.append(fileInput);
   fileInput.classList.add('uiElement');
   fileInput.type = 'file';
   fileInput.setAttribute('id', 'fileUpload');
   const newImageButton = document.createElement('button');
   newImageButton.innerHTML = 'New Image';
   newImageButton.id = 'new-I=image-button';
-  controls.appendChild(newImageButton);
+  drawingControls.appendChild(newImageButton);
   const saveButton = document.createElement('button');
   saveButton.innerHTML = 'Save as PNG';
   saveButton.id = 'save-button';
-  controls.appendChild(saveButton);
+  drawingControls.appendChild(saveButton);
   const saveSvgButton = document.createElement('button');
   saveSvgButton.innerHTML = 'Save as SVG';
   saveSvgButton.id = 'save-svg-button';
-  controls.appendChild(saveSvgButton);
+  drawingControls.appendChild(saveSvgButton);
+  tensionSlider = makeSlider(
+    'tension-slider',
+    -20,
+    20,
+    0.25,
+    tension,
+    'Tension'
+  );
+  toleranceSlider = makeSlider(
+    'tolerance-slider',
+    0,
+    10,
+    0.5,
+    tolerance,
+    'Tolerance'
+  );
+
+  qualitySelect = document.createElement('input');
+  qualitySelect.type = 'checkbox';
+  qualitySelect.name = 'qualitySelect';
+  qualitySelect.value = 'brandColorsSimple';
+  qualitySelect.id = 'quality-select';
+  const qualitySelectLabel = document.createElement('label');
+  qualitySelectLabel.setAttribute('for', 'quality-select');
+  qualitySelectLabel.textContent = 'High Quality Smoothing';
+  drawingControls.appendChild(qualitySelectLabel);
+  drawingControls.appendChild(qualitySelect);
+  levelsSlider = makeSlider('levels-slider', 2, 30, 1, levels, 'Levels');
+  marginSlider = makeSlider('margin-slider', 1, 500, 1, margin, 'Margin');
+  thresholdLowSlider = makeSlider(
+    'threshold-low-slider',
+    0,
+    255,
+    1,
+    threshLow,
+    'Threshold Low'
+  );
+  thresholdHighSlider = makeSlider(
+    'threshold-high-slider',
+    1,
+    255,
+    1,
+    threshHigh,
+    'Threshold High'
+  );
+  lWidthSlider = makeSlider(
+    'lwidth-slider',
+    0.1,
+    5,
+    0.1,
+    lWidth,
+    'Stroke Width'
+  );
+  minPathLengthSlider = makeSlider(
+    'min-path-length-slider',
+    0,
+    1000,
+    1,
+    minPathLength,
+    'Minimum Path Length'
+  );
   const drawButton = document.createElement('button');
   drawButton.innerHTML = 'Draw Lines';
   drawButton.id = 'draw-button';
-  controls.appendChild(drawButton);
+  drawingControls.appendChild(drawButton);
 
+  sizeSelect = document.createElement('select');
+  sizeSelect.id = 'size-select';
+  sizeSelect.classList.add('uiElement');
+  sizeControls.appendChild(sizeSelect);
+  presets.forEach((element) => {
+    const sizeOption = document.createElement('option');
+    sizeOption.innerHTML = element.name;
+    sizeOption.setAttribute('data-width', element.width);
+    sizeOption.setAttribute('data-height', element.height);
+    sizeSelect.appendChild(sizeOption);
+  });
+  sizeSelect.selectedIndex = 0;
+  console.log(
+    Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.width)
+  );
+
+  // Listeners
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
-    paper.setup('c1');
-    draw.imgToCanvas();
+    cInput.width = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.width
+    );
+    cInput.height = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.height
+    );
+    outputSVG.viewbox(
+      0,
+      0,
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.width),
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.height)
+    );
+    outputSVG.attr('preserveAspectRatio', 'xMidYMid meet');
+    draw.imgToCanvas(outputSVG);
   };
   img.src = imgUrl;
 
@@ -73,16 +182,39 @@ function init() {
     img.src = URL.createObjectURL(fileInput.files[0]);
     console.log('File Uploaded');
     console.time('Image Load Time');
+    newImageStatus = true;
+  };
+  marginSlider.onchange = function () {
+    margin = marginSlider.value;
+    draw.imgToCanvas();
   };
   newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
-  saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
-  saveSvgButton.onclick = () => draw.downloadAsSVG('test');
-  drawButton.onclick = () => draw.contourMap();
+  saveButton.onclick = () => saveOutputAsPNG();
+  saveSvgButton.onclick = () => draw.downloadAsSVG(outputSVG);
+  drawButton.onclick = () => draw.contourMap(outputSVG);
+  qualitySelect.onclick = () => draw.contourMap(outputSVG);
+  sizeSelect.onchange = () => {
+    cInput.width = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.width
+    );
+    cInput.height = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.height
+    );
+    outputSVG.viewbox(
+      0,
+      0,
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.width),
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.height)
+    );
+    outputSVG.attr('preserveAspectRatio', 'xMidYMid meet');
+    draw.imgToCanvas(outputSVG);
+  };
 
   console.time('Image Load Time');
 }
 const draw = {
-  imgToCanvas: function () {
+  // draw image to canvas for pixel data can be retrieved
+  imgToCanvas: function (outputSVG) {
     const c = document.querySelector('#c0');
     const ctx = c.getContext('2d');
     var scale = Math.max(c.width / img.width, c.height / img.height);
@@ -91,33 +223,54 @@ const draw = {
     var y = c.height / 2 - (img.height / 2) * scale;
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-    // draw.contourMap();
+    ctx.lineWidth = margin * 2;
+    ctx.strokeStyle = 'white';
+    ctx.rect(0, 0, c.width, c.height);
+
+    ctx.stroke();
+    if (newImageStatus == true) {
+      draw.contourMap(outputSVG);
+      newImageStatus = false;
+    }
   },
-  contourMap: function () {
+  // Find Contours and clean data
+  contourMap: function (outputSVG) {
+    outputSVG.clear();
     const cInput = document.querySelector('#c0');
-    const ctxInput = cInput.getContext('2d');
-    const cOutput = document.querySelector('#c1');
-    const ctxOutput = cOutput.getContext('2d');
-    paper.project.clear();
-
+    let pathGroup = outputSVG.group();
+    let pathArray = [];
     console.log('Open CV loaded');
-
-    let inc = (threshHigh - threshLow) / levels;
-    let tInc = threshLow;
+    // set up threshold divisions
+    let inc =
+      (parseInt(thresholdHighSlider.value) -
+        parseInt(thresholdLowSlider.value)) /
+      levelsSlider.value;
+    let tInc = parseInt(thresholdLowSlider.value);
     let threshArr = [];
-    for (let i = 0; i < levels; i++) {
+    for (let i = 0; i < levelsSlider.value - 1; i++) {
       tInc = tInc + inc;
       threshArr.push(tInc);
     }
+    if (threshArr.length == 1) {
+      threshArr[0] = 255 / 2;
+    }
     console.log('Curve Draw Started');
     console.time('Line Drawing Time');
-    // loop to perform contour find and draw a difference levels of grey
     let src = cv.imread(cInput);
-    let group = new paper.Group();
+    let ksize = new cv.Size(25, 25);
+
+    // loop over the different threshold divisions
     threshArr.forEach((element) => {
+      // find contours and setup
       let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
       cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-      cv.threshold(dst, dst, element, 255, cv.THRESH_BINARY);
+      cv.threshold(
+        dst,
+        dst,
+        element,
+        parseInt(thresholdHighSlider.value),
+        cv.THRESH_BINARY
+      );
       let contours = new cv.MatVector();
       let hierarchy = new cv.Mat();
       cv.findContours(
@@ -127,96 +280,189 @@ const draw = {
         cv.RETR_CCOMP,
         cv.CHAIN_APPROX_SIMPLE
       );
+
+      // get contour points and push to array
       let points = [];
       for (let j = 0; j < contours.size(); ++j) {
         const ci = contours.get(j);
         points[j] = [];
         for (let k = 0; k < ci.data32S.length; k += 2) {
           let p = [];
-          p[0] = ci.data32S[k];
-          p[1] = ci.data32S[k + 1];
+          // if (
+          //   parseInt(ci.data32S[k]) >= marginSlider.value &&
+          //   parseInt(ci.data32S[k]) <=
+          //     outputSVG.viewbox().width - marginSlider.value &&
+          //   parseInt(ci.data32S[k + 1]) >= marginSlider.value &&
+          //   parseInt(ci.data32S[k + 1]) <=
+          //     outputSVG.viewbox().height - marginSlider.value
+          // ) {
+          p[0] = parseInt(ci.data32S[k]);
+          p[1] = parseInt(ci.data32S[k + 1]);
           points[j].push(p);
+          // }
         }
       }
+
+      // filter out contours with less than minNumPointsInContour (usually < 4)
       let fPoints = points.filter(function (element) {
         return element.length >= minNumPointsInContour;
       });
 
+      // simplify points before drawing
       let sFPoints = [];
       fPoints.forEach((element) => {
-        let simplifiedPoints = simplify(element, tolerance);
+        let simplifiedPoints = simplify(
+          element,
+          toleranceSlider.value,
+          qualitySelect.checked
+        );
         sFPoints.push(simplifiedPoints);
       });
 
-      let currentScale = getScale();
-      let scaledPoints = sFPoints.map(function (nested) {
-        return nested.map(function (element) {
-          return [element[0] * currentScale, element[1] * currentScale];
+      // this still feels broken. Supposed to filter out all points outside margin but doesnt seem to work
+      let fSFPoints = sFPoints.filter(function (element) {
+        return element.filter(function (nestedElement) {
+          return (
+            nestedElement[0] >= marginSlider.value &&
+            nestedElement[0] <=
+              outputSVG.viewbox().width - marginSlider.value &&
+            nestedElement[1] >= marginSlider.value &&
+            nestedElement[1] <= outputSVG.viewbox().height - marginSlider.value
+          );
         });
       });
 
-      scaledPoints.forEach((element) => {
-        let path = new paper.Path(element);
-        path.closed = true;
-        // path.simplify([tolerance]);
-        path.smooth({ type: 'catmull-rom', factor: tension });
-        group.addChild(path);
+      // push parsed svg paths to new array
+      fSFPoints.forEach((element) => {
+        let drawnPath = catmullRomInterpolation(
+          element.flat(),
+          tensionSlider.value,
+          outputSVG
+        );
+        pathArray.push(drawnPath);
       });
-
       dst.delete();
       contours.delete();
       hierarchy.delete();
     });
     src.delete();
-    group.strokeWidth = lWidth;
-    group.strokeScaling = false;
-    group.miterLimit = 5;
-    group.strokeColor = '#313639 ';
-    paper.view.draw();
+    //
+    pathArray.forEach((element) => {
+      let currentPath = outputSVG.path(element);
+      if (currentPath.length() >= minPathLengthSlider.value) {
+        pathGroup.add(currentPath);
+      }
+    });
+    // set styles
+    outputSVG.fill('none');
+    outputSVG.stroke('none');
+    pathGroup.stroke({
+      color: '#313639',
+      linejoin: 'miter',
+      miterlimit: miterLimit,
+      width: lWidthSlider.value,
+    });
+    // clip SVG
+    let rect = outputSVG
+      .rect(
+        outputSVG.viewbox().width - marginSlider.value * 2,
+        outputSVG.viewbox().height - marginSlider.value * 2
+      )
+      .move(marginSlider.value, marginSlider.value);
+    pathGroup.clipWith(rect);
+
     console.timeEnd('Line Drawing Time');
   },
-  downloadAsSVG: function (fileName) {
-    console.log('SVG Save Started');
-    console.time('SVG Save Time');
-    if (!fileName) {
-      fileName = 'paperjs_example.svg';
+  downloadAsSVG: function (outputSVG) {
+    download(svgDataURL(document.getElementById('outputSVG')));
+
+    function svgDataURL(svg) {
+      var svgAsXML = new XMLSerializer().serializeToString(svg);
+      return 'data:image/svg+xml,' + encodeURIComponent(svgAsXML);
     }
 
-    var url =
-      'data:image/svg+xml;utf8,' +
-      encodeURIComponent(paper.project.exportSVG({ asString: true }));
-
-    var link = document.createElement('a');
-    link.download = fileName;
-    link.href = url;
-    link.click();
-    console.timeEnd('SVG Save Time');
-    console.log('SVG Save Done');
+    function download(dataURL) {
+      var dl = document.createElement('a');
+      document.body.appendChild(dl); // This line makes it work in Firefox.
+      dl.setAttribute('href', dataURL);
+      dl.setAttribute('download', 'test.svg');
+      dl.click();
+    }
   },
 };
 
-function getScale() {
-  let scale = document.querySelector('#c1').offsetWidth / cWidth;
-  return scale;
+function makeSlider(id, min, max, step, value, labelText) {
+  let slider = document.createElement('input');
+  slider.setAttribute('type', 'range');
+  slider.setAttribute('min', min);
+  slider.setAttribute('max', max);
+  slider.setAttribute('step', step);
+  slider.setAttribute('value', value);
+  slider.setAttribute('id', id);
+  document.querySelector('#drawingControls').appendChild(slider);
+  const sliderLabel = document.createElement('label');
+  sliderLabel.classList.add('uiElementLabel');
+  sliderLabel.setAttribute('for', id);
+  sliderLabel.innerHTML = labelText + ' : ' + slider.value;
+  slider.insertAdjacentElement('beforebegin', sliderLabel);
+  slider.oninput = function () {
+    sliderLabel.innerHTML = labelText + ' : ' + slider.value;
+  };
+  return slider;
 }
 
-function saveCanvasAsPNG(canvas) {
-  const link = document.createElement('a');
-  let d = new Date(),
-    h = (d.getHours() < 10 ? '0' : '') + d.getHours(),
-    m = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(),
-    s = (d.getSeconds() < 10 ? '0' : '') + d.getSeconds();
-  link.download = 'Drawing-' + h + '.' + m + '.' + s + '.png';
-  link.href = canvas.toDataURL();
-  link.click();
-  link.delete;
+function saveOutputAsPNG() {
+  saveSvgAsPng(document.getElementById('outputSVG'), 'Download.png');
 }
 function getNewImage(img) {
-  img.src = 'https://source.unsplash.com/random/';
+  newImageStatus = true;
+  img.src =
+    'https://source.unsplash.com/random/?' + searchTerm + ',n=' + Math.random();
   console.time('Image Load Time');
+}
+
+function catmullRomInterpolation(points, k, outputSVG) {
+  if (k == null) k = 1;
+
+  var size = points.length;
+  var last = size - 4;
+
+  var path = 'M' + [points[0], points[1]];
+
+  for (var i = 0; i < size - 2; i += 2) {
+    var x0 = i ? points[i - 2] : points[0];
+    var y0 = i ? points[i - 1] : points[1];
+
+    var x1 = points[i + 0];
+    var y1 = points[i + 1];
+
+    var x2 = points[i + 2];
+    var y2 = points[i + 3];
+
+    var x3 = i !== last ? points[i + 4] : x2;
+    var y3 = i !== last ? points[i + 5] : y2;
+
+    var cp1x = x1 + ((x2 - x0) / 6) * k;
+    var cp1y = y1 + ((y2 - y0) / 6) * k;
+
+    var cp2x = x2 - ((x3 - x1) / 6) * k;
+    var cp2y = y2 - ((y3 - y1) / 6) * k;
+    if (x2 <= marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else if (y2 <= marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else if (x2 >= outputSVG.viewbox().width - marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else if (y2 >= outputSVG.viewbox().height - marginSlider.value) {
+      path += 'L' + [x2, y2];
+    } else {
+      path += 'C' + [cp1x, cp1y, cp2x, cp2y, x2, y2];
+    }
+  }
+  path += 'Z';
+  return path;
 }
 
 cv['onRuntimeInitialized'] = () => {
   window.onload = init();
-  // window.onresize = init();
 };
