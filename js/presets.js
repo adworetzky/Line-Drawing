@@ -15,6 +15,21 @@ const presets = [
     height: 842,
   },
   {
+    name: 'A1',
+    width: 841,
+    height: 1189,
+  },
+  {
+    name: 'A2',
+    width: 594,
+    height: 841,
+  },
+  {
+    name: 'A3',
+    width: 420,
+    height: 594,
+  },
+  {
     name: 'A4',
     width: 598,
     height: 842,
