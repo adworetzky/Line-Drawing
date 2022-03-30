@@ -15,13 +15,33 @@ body {
   flex-direction: column;
   justify-content: center;
 }
-#controls {
+#uiWrapper {
+  margin: 1%;
+  width: 20%;
+  height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  justify-content: center;
+}
+#drawingControls {
   margin: auto;
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
   align-items: flex-start;
-  width: 20%;
+  width: 100%;
+  padding: 1%;
+  background-color: #064663;
+  border-radius: 10px;
+}
+#sizeControls {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  width: 100%;
   padding: 1%;
   background-color: #064663;
   border-radius: 10px;

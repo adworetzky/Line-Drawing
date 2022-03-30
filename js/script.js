@@ -7,18 +7,32 @@
 
 let threshLow = 0;
 let threshHigh = 255;
-let levels = 10;
-let tension = 1;
-let tolerance = 5;
+let levels = 11;
+let tension = -15;
+let tolerance = 1.5;
 let lWidth = 0.5;
 let minNumPointsInContour = 4;
-let margin = 80;
+let margin = 50;
 let marginGrow = 30;
-let minPathLength = 50;
+let minPathLength = 1000;
 let miterLimit = 5;
+let searchTerm = 'architecture';
 
-const imgUrl = 'https://source.unsplash.com/random/';
-let img, fileInput, outputSVG, tensionSlider;
+const imgUrl = 'https://source.unsplash.com/random/?' + searchTerm;
+let img,
+  fileInput,
+  outputSVG,
+  tensionSlider,
+  toleranceSlider,
+  lWidthSlider,
+  minNumPointsInContourSlider,
+  marginSlider,
+  minPathLengthSlider,
+  thresholdLowSlider,
+  thresholdHighSlider,
+  levelsSlider,
+  sizeSelect,
+  qualitySelect;
 let newImageStatus = true;
 
 function init() {
@@ -27,10 +41,15 @@ function init() {
   //     return response.json();
   //   })
   //   .then((data) => console.log(data.presets[0].name));
-
-  const controls = document.createElement('div');
-  controls.id = 'controls';
-  document.body.appendChild(controls);
+  const uiWrapper = document.createElement('div');
+  uiWrapper.id = 'uiWrapper';
+  document.body.appendChild(uiWrapper);
+  const drawingControls = document.createElement('div');
+  drawingControls.id = 'drawingControls';
+  uiWrapper.appendChild(drawingControls);
+  const sizeControls = document.createElement('div');
+  sizeControls.id = 'sizeControls';
+  uiWrapper.appendChild(sizeControls);
   const main = document.createElement('main');
   document.body.appendChild(main);
 
@@ -45,26 +64,26 @@ function init() {
   outputSVG.attr('id', 'outputSVG');
 
   const fileInput = document.createElement('input');
-  controls.append(fileInput);
+  drawingControls.append(fileInput);
   fileInput.classList.add('uiElement');
   fileInput.type = 'file';
   fileInput.setAttribute('id', 'fileUpload');
   const newImageButton = document.createElement('button');
   newImageButton.innerHTML = 'New Image';
   newImageButton.id = 'new-I=image-button';
-  controls.appendChild(newImageButton);
+  drawingControls.appendChild(newImageButton);
   const saveButton = document.createElement('button');
   saveButton.innerHTML = 'Save as PNG';
   saveButton.id = 'save-button';
-  controls.appendChild(saveButton);
+  drawingControls.appendChild(saveButton);
   const saveSvgButton = document.createElement('button');
   saveSvgButton.innerHTML = 'Save as SVG';
   saveSvgButton.id = 'save-svg-button';
-  controls.appendChild(saveSvgButton);
+  drawingControls.appendChild(saveSvgButton);
   tensionSlider = makeSlider(
     'tension-slider',
-    -10,
-    10,
+    -20,
+    20,
     0.25,
     tension,
     'Tension'
@@ -72,12 +91,23 @@ function init() {
   toleranceSlider = makeSlider(
     'tolerance-slider',
     0,
-    50,
+    10,
     0.5,
     tolerance,
     'Tolerance'
   );
-  levelsSlider = makeSlider('levels-slider', 1, 100, 1, levels, 'Levels');
+
+  qualitySelect = document.createElement('input');
+  qualitySelect.type = 'checkbox';
+  qualitySelect.name = 'qualitySelect';
+  qualitySelect.value = 'brandColorsSimple';
+  qualitySelect.id = 'quality-select';
+  const qualitySelectLabel = document.createElement('label');
+  qualitySelectLabel.setAttribute('for', 'quality-select');
+  qualitySelectLabel.textContent = 'High Quality Smoothing';
+  drawingControls.appendChild(qualitySelectLabel);
+  drawingControls.appendChild(qualitySelect);
+  levelsSlider = makeSlider('levels-slider', 2, 30, 1, levels, 'Levels');
   marginSlider = makeSlider('margin-slider', 1, 500, 1, margin, 'Margin');
   thresholdLowSlider = makeSlider(
     'threshold-low-slider',
@@ -106,7 +136,7 @@ function init() {
   minPathLengthSlider = makeSlider(
     'min-path-length-slider',
     0,
-    100,
+    1000,
     1,
     minPathLength,
     'Minimum Path Length'
@@ -114,15 +144,40 @@ function init() {
   const drawButton = document.createElement('button');
   drawButton.innerHTML = 'Draw Lines';
   drawButton.id = 'draw-button';
-  controls.appendChild(drawButton);
+  drawingControls.appendChild(drawButton);
+
+  sizeSelect = document.createElement('select');
+  sizeSelect.id = 'size-select';
+  sizeSelect.classList.add('uiElement');
+  sizeControls.appendChild(sizeSelect);
+  presets.forEach((element) => {
+    const sizeOption = document.createElement('option');
+    sizeOption.innerHTML = element.name;
+    sizeOption.setAttribute('data-width', element.width);
+    sizeOption.setAttribute('data-height', element.height);
+    sizeSelect.appendChild(sizeOption);
+  });
+  sizeSelect.selectedIndex = 0;
+  console.log(
+    Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.width)
+  );
 
   // Listeners
   img.onload = function () {
     console.timeEnd('Image Load Time');
     console.log('Img Loaded');
-    cInput.width = img.width;
-    cInput.height = img.height;
-    outputSVG.viewbox(0, 0, img.width, img.height);
+    cInput.width = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.width
+    );
+    cInput.height = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.height
+    );
+    outputSVG.viewbox(
+      0,
+      0,
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.width),
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.height)
+    );
     outputSVG.attr('preserveAspectRatio', 'xMidYMid meet');
     draw.imgToCanvas(outputSVG);
   };
@@ -143,6 +198,23 @@ function init() {
   saveButton.onclick = () => saveOutputAsPNG();
   saveSvgButton.onclick = () => draw.downloadAsSVG(outputSVG);
   drawButton.onclick = () => draw.contourMap(outputSVG);
+  qualitySelect.onclick = () => draw.contourMap(outputSVG);
+  sizeSelect.onchange = () => {
+    cInput.width = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.width
+    );
+    cInput.height = Number(
+      sizeSelect.options[sizeSelect.selectedIndex].dataset.height
+    );
+    outputSVG.viewbox(
+      0,
+      0,
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.width),
+      Number(sizeSelect.options[sizeSelect.selectedIndex].dataset.height)
+    );
+    outputSVG.attr('preserveAspectRatio', 'xMidYMid meet');
+    draw.imgToCanvas(outputSVG);
+  };
 
   console.time('Image Load Time');
 }
@@ -150,12 +222,12 @@ const draw = {
   imgToCanvas: function (outputSVG) {
     const c = document.querySelector('#c0');
     const ctx = c.getContext('2d');
-    // var scale = Math.max(c.width / img.width, c.height / img.height);
-    // // get the top left position of the image
-    // var x = c.width / 2 - (img.width / 2) * scale;
-    // var y = c.height / 2 - (img.height / 2) * scale;
+    var scale = Math.max(c.width / img.width, c.height / img.height);
+    // get the top left position of the image
+    var x = c.width / 2 - (img.width / 2) * scale;
+    var y = c.height / 2 - (img.height / 2) * scale;
     ctx.clearRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, 0, 0, img.width, img.height);
+    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
     ctx.lineWidth = margin * 2;
     ctx.strokeStyle = 'white';
     ctx.rect(0, 0, c.width, c.height);
@@ -246,18 +318,24 @@ const draw = {
       // simplify points before drawing
       let sFPoints = [];
       fPoints.forEach((element) => {
-        let simplifiedPoints = simplify(element, toleranceSlider.value, true);
+        let simplifiedPoints = simplify(
+          element,
+          toleranceSlider.value,
+          qualitySelect.checked
+        );
         sFPoints.push(simplifiedPoints);
       });
 
       // this still feels broken. Supposed to filter out all points outside margin but doesnt seem to work
-      let fSFPoints = sFPoints.filter(function (element, index) {
-        return element.filter(function (nestedElement, nestedIndex) {
-          nestedElement[0] >= marginSlider.value &&
+      let fSFPoints = sFPoints.filter(function (element) {
+        return element.filter(function (nestedElement) {
+          return (
+            nestedElement[0] >= marginSlider.value &&
             nestedElement[0] <=
               outputSVG.viewbox().width - marginSlider.value &&
             nestedElement[1] >= marginSlider.value &&
-            nestedElement[1] <= outputSVG.viewbox().height - marginSlider.value;
+            nestedElement[1] <= outputSVG.viewbox().height - marginSlider.value
+          );
         });
       });
 
@@ -279,11 +357,11 @@ const draw = {
     pathArray.forEach((element) => {
       let currentPath = outputSVG.path(element);
       if (currentPath.length() >= minPathLengthSlider.value) {
-        pathLengthCounter += currentPath.length();
+        // pathLengthCounter += currentPath.length();
         pathGroup.add(currentPath);
       }
     });
-    console.log('Total Path Length:' + pathLengthCounter);
+    // console.log('Total Path Length:' + pathLengthCounter);
     outputSVG.fill('none');
     outputSVG.stroke('none');
     pathGroup.stroke({
@@ -293,13 +371,13 @@ const draw = {
       width: lWidthSlider.value,
     });
 
-    // let rect = outputSVG
-    //   .rect(
-    //     outputSVG.viewbox().width - marginSlider.value * 2,
-    //     outputSVG.viewbox().height - marginSlider.value * 2
-    //   )
-    //   .move(marginSlider.value, marginSlider.value);
-    // pathGroup.clipWith(rect);
+    let rect = outputSVG
+      .rect(
+        outputSVG.viewbox().width - marginSlider.value * 2,
+        outputSVG.viewbox().height - marginSlider.value * 2
+      )
+      .move(marginSlider.value, marginSlider.value);
+    pathGroup.clipWith(rect);
     src.delete();
     console.timeEnd('Line Drawing Time');
   },
@@ -329,7 +407,7 @@ function makeSlider(id, min, max, step, value, labelText) {
   slider.setAttribute('step', step);
   slider.setAttribute('value', value);
   slider.setAttribute('id', id);
-  document.querySelector('#controls').appendChild(slider);
+  document.querySelector('#drawingControls').appendChild(slider);
   const sliderLabel = document.createElement('label');
   sliderLabel.classList.add('uiElementLabel');
   sliderLabel.setAttribute('for', id);
@@ -346,7 +424,8 @@ function saveOutputAsPNG() {
 }
 function getNewImage(img) {
   newImageStatus = true;
-  img.src = 'https://source.unsplash.com/random/?n=' + Math.random();
+  img.src =
+    'https://source.unsplash.com/random/?' + searchTerm + ',n=' + Math.random();
   console.time('Image Load Time');
 }
 
@@ -390,14 +469,6 @@ function catmullRomInterpolation(points, k, outputSVG) {
   }
   path += 'Z';
   return path;
-}
-function getRandomColor() {
-  var letters = '0123456789ABCDEF';
-  var color = '#';
-  for (var i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
 }
 
 cv['onRuntimeInitialized'] = () => {
