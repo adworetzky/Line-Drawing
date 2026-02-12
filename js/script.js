@@ -1,222 +1,464 @@
-// four steps
-// start with real image (DONE)
-// use blob detection to generate same brightness iso lines (DONE)
-// simplify/smooth (doing it manually)
-// draw catmull rom splines though said vertecies (Paper.js does it but export at specific size svg will be a problem)
+/**
+ * Line Drawing Studio — Main application controller.
+ * Wires together UI, processing pipeline (LineRender), GPU module, and editor.
+ */
+(function () {
+    'use strict';
 
-let threshLow = 30;
-let threshHigh = 200;
-let levels = 10;
-let tension = -0.3;
-let tolerance = 5;
-let lWidth = 0.4;
-let cWidth = 1080;
-let cHeight = 1080;
-let minNumPointsInContour = 4;
-const imgUrl = 'https://source.unsplash.com/random';
-let img, fileInput;
+    // ── State ──
+    let imageLoaded = false;
+    let processing = false;
+    let lastRenderResult = null;
 
-function init() {
-  const controls = document.createElement('div');
-  controls.id = 'controls';
-  document.body.appendChild(controls);
-  const main = document.createElement('main');
-  document.body.appendChild(main);
+    // ── DOM refs (populated in init) ──
+    const $ = (id) => document.getElementById(id);
 
-  img = document.createElement('img');
-  img.id = 'i0';
-  img.crossOrigin = 'Anonymous';
-  main.appendChild(img);
-  const cInput = document.createElement('canvas');
-  cInput.id = 'c0';
-  cInput.width = cWidth;
-  cInput.height = cHeight;
-  main.appendChild(cInput);
-  const cOutput = document.createElement('canvas');
-  cOutput.id = 'c1';
-  cOutput.width = cWidth;
-  cOutput.height = cHeight;
-  main.appendChild(cOutput);
+    // ── Helpers ──
+    function show(el) { if (el) el.style.display = ''; }
+    function hide(el) { if (el) el.style.display = 'none'; }
 
-  const fileInput = document.createElement('input');
-  controls.append(fileInput);
-  fileInput.classList.add('uiElement');
-  fileInput.type = 'file';
-  fileInput.setAttribute('id', 'fileUpload');
-  const newImageButton = document.createElement('button');
-  newImageButton.innerHTML = 'New Image';
-  newImageButton.id = 'new-I=image-button';
-  controls.appendChild(newImageButton);
-  const saveButton = document.createElement('button');
-  saveButton.innerHTML = 'Save as PNG';
-  saveButton.id = 'save-button';
-  controls.appendChild(saveButton);
-  const saveSvgButton = document.createElement('button');
-  saveSvgButton.innerHTML = 'Save as SVG';
-  saveSvgButton.id = 'save-svg-button';
-  controls.appendChild(saveSvgButton);
-  const drawButton = document.createElement('button');
-  drawButton.innerHTML = 'Draw Lines';
-  drawButton.id = 'draw-button';
-  controls.appendChild(drawButton);
-
-  img.onload = function () {
-    console.timeEnd('Image Load Time');
-    console.log('Img Loaded');
-    paper.setup('c1');
-    draw.imgToCanvas();
-  };
-  img.src = imgUrl;
-
-  fileInput.onchange = function () {
-    console.log(fileInput.files[0]);
-    img.src = URL.createObjectURL(fileInput.files[0]);
-    console.log('File Uploaded');
-    console.time('Image Load Time');
-  };
-  newImageButton.onclick = () => getNewImage(document.querySelector('#i0'));
-  saveButton.onclick = () => saveCanvasAsPNG(document.querySelector('#c1'));
-  saveSvgButton.onclick = () => draw.downloadAsSVG('test');
-  drawButton.onclick = () => draw.contourMap();
-
-  console.time('Image Load Time');
-}
-const draw = {
-  imgToCanvas: function () {
-    const c = document.querySelector('#c0');
-    const ctx = c.getContext('2d');
-    var scale = Math.max(c.width / img.width, c.height / img.height);
-    // get the top left position of the image
-    var x = c.width / 2 - (img.width / 2) * scale;
-    var y = c.height / 2 - (img.height / 2) * scale;
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-    // draw.contourMap();
-  },
-  contourMap: function () {
-    const cInput = document.querySelector('#c0');
-    const ctxInput = cInput.getContext('2d');
-    const cOutput = document.querySelector('#c1');
-    const ctxOutput = cOutput.getContext('2d');
-    paper.project.clear();
-
-    console.log('Open CV loaded');
-
-    let inc = (threshHigh - threshLow) / levels;
-    let tInc = threshLow;
-    let threshArr = [];
-    for (let i = 0; i < levels; i++) {
-      tInc = tInc + inc;
-      threshArr.push(tInc);
+    function readOption(id) {
+        const el = $(id);
+        if (!el) return null;
+        if (el.type === 'checkbox') return el.checked;
+        if (el.type === 'range') return parseFloat(el.value);
+        return el.value;
     }
-    console.log('Curve Draw Started');
-    console.time('Line Drawing Time');
-    // loop to perform contour find and draw a difference levels of grey
-    let src = cv.imread(cInput);
-    let group = new paper.Group();
-    threshArr.forEach((element) => {
-      let dst = cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC3);
-      cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
-      cv.threshold(dst, dst, element, 255, cv.THRESH_BINARY);
-      let contours = new cv.MatVector();
-      let hierarchy = new cv.Mat();
-      cv.findContours(
-        dst,
-        contours,
-        hierarchy,
-        cv.RETR_CCOMP,
-        cv.CHAIN_APPROX_SIMPLE
-      );
-      let points = [];
-      for (let j = 0; j < contours.size(); ++j) {
-        const ci = contours.get(j);
-        points[j] = [];
-        for (let k = 0; k < ci.data32S.length; k += 2) {
-          let p = [];
-          p[0] = ci.data32S[k];
-          p[1] = ci.data32S[k + 1];
-          points[j].push(p);
+
+    function setProgress(pct, text) {
+        const bar = $('progress-bar');
+        const fill = $('progress-fill');
+        const label = $('progress-text');
+        if (pct <= 0) { hide(bar); return; }
+        show(bar);
+        fill.style.width = pct + '%';
+        if (text) label.textContent = text;
+    }
+
+    function setLoadingText(msg) {
+        const el = $('loading-text');
+        if (el) el.textContent = msg;
+    }
+
+    // ── Image loading ──
+    function loadImage(src) {
+        const img = $('source-img');
+        img.onload = function () {
+            imageLoaded = true;
+            // Show preview
+            $('preview-img').src = img.src;
+            show($('source-preview'));
+            hide($('drop-zone'));
+            hide($('empty-state'));
+            show($('canvas-wrapper'));
+
+            // Draw to input canvas
+            const cInput = $('c-input');
+            const size = parseInt(readOption('opt-canvas-size')) || 1080;
+            cInput.width = size;
+            cInput.height = size;
+            const ctx = cInput.getContext('2d');
+            const scale = Math.max(size / img.width, size / img.height);
+            const x = (size - img.width * scale) / 2;
+            const y = (size - img.height * scale) / 2;
+            ctx.clearRect(0, 0, size, size);
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+
+            // Setup output canvas
+            const cOutput = $('c-output');
+            cOutput.width = size;
+            cOutput.height = size;
+
+            // Fit canvas in view
+            fitCanvasToView();
+
+            // Setup Paper.js on the output canvas
+            paper.setup(cOutput);
+
+            // Initialize editor tools
+            Editor.init({
+                onSelectionChange: updateSelectionInfo,
+                onHistoryChange: updateHistoryButtons,
+                onZoomChange: updateZoomLabel
+            });
+
+            $('btn-generate').disabled = false;
+            applyBackground();
+        };
+        img.onerror = function () {
+            console.error('Failed to load image');
+            imageLoaded = false;
+        };
+        img.src = src;
+    }
+
+    function fitCanvasToView() {
+        const wrapper = $('canvas-wrapper');
+        const area = $('canvas-area');
+        const cOutput = $('c-output');
+        if (!cOutput || !area) return;
+
+        const areaW = area.clientWidth - 40;
+        const areaH = area.clientHeight - 40;
+        const scale = Math.min(areaW / cOutput.width, areaH / cOutput.height, 1);
+        wrapper.style.transform = 'scale(' + scale + ')';
+        wrapper.style.transformOrigin = 'center center';
+    }
+
+    // ── Background handling ──
+    function applyBackground() {
+        const cOutput = $('c-output');
+        const bg = readOption('opt-background');
+        cOutput.classList.remove('paper-bg');
+        cOutput.style.backgroundColor = '';
+
+        switch (bg) {
+            case 'paper':
+                cOutput.classList.add('paper-bg');
+                break;
+            case 'white':
+                cOutput.style.backgroundColor = '#ffffff';
+                break;
+            case 'transparent':
+                cOutput.style.backgroundColor = 'transparent';
+                break;
+            case 'custom':
+                cOutput.style.backgroundColor = readOption('opt-bg-color');
+                break;
         }
-      }
-      let fPoints = points.filter(function (element) {
-        return element.length >= minNumPointsInContour;
-      });
-
-      let sFPoints = [];
-      fPoints.forEach((element) => {
-        let simplifiedPoints = simplify(element, tolerance);
-        sFPoints.push(simplifiedPoints);
-      });
-
-      let currentScale = getScale();
-      let scaledPoints = sFPoints.map(function (nested) {
-        return nested.map(function (element) {
-          return [element[0] * currentScale, element[1] * currentScale];
-        });
-      });
-
-      scaledPoints.forEach((element) => {
-        let path = new paper.Path(element);
-        path.closed = true;
-        // path.simplify([tolerance]);
-        path.smooth({ type: 'catmull-rom', factor: tension });
-        group.addChild(path);
-      });
-
-      dst.delete();
-      contours.delete();
-      hierarchy.delete();
-    });
-    src.delete();
-    group.strokeWidth = lWidth;
-    group.strokeScaling = false;
-    group.miterLimit = 5;
-    group.strokeColor = '#313639 ';
-    paper.view.draw();
-    console.timeEnd('Line Drawing Time');
-  },
-  downloadAsSVG: function (fileName) {
-    console.log('SVG Save Started');
-    console.time('SVG Save Time');
-    if (!fileName) {
-      fileName = 'paperjs_example.svg';
     }
 
-    var url =
-      'data:image/svg+xml;utf8,' +
-      encodeURIComponent(paper.project.exportSVG({ asString: true }));
+    // ── Generation ──
+    function generate() {
+        if (!imageLoaded || processing) return;
+        processing = true;
+        $('btn-generate').disabled = true;
+        setProgress(5, 'Processing...');
 
-    var link = document.createElement('a');
-    link.download = fileName;
-    link.href = url;
-    link.click();
-    console.timeEnd('SVG Save Time');
-    console.log('SVG Save Done');
-  },
-};
+        Editor.clearHistory();
 
-function getScale() {
-  let scale = document.querySelector('#c1').offsetWidth / cWidth;
-  return scale;
-}
+        // Collect options from UI
+        const options = {
+            inputCanvas: $('c-input'),
+            levels: readOption('opt-levels'),
+            threshLow: readOption('opt-thresh-low'),
+            threshHigh: readOption('opt-thresh-high'),
+            minPoints: readOption('opt-min-points'),
+            edgeMethod: readOption('opt-edge-method'),
+            simplifyMethod: readOption('opt-simplify-method'),
+            tolerance: readOption('opt-tolerance'),
+            smoothType: readOption('opt-smooth-type'),
+            tension: readOption('opt-tension'),
+            strokeWidth: readOption('opt-stroke-width'),
+            strokeColor: readOption('opt-stroke-color'),
+            useGPU: readOption('opt-gpu'),
+            onProgress: function (pct) {
+                setProgress(pct, 'Processing... ' + pct + '%');
+            }
+        };
 
-function saveCanvasAsPNG(canvas) {
-  const link = document.createElement('a');
-  let d = new Date(),
-    h = (d.getHours() < 10 ? '0' : '') + d.getHours(),
-    m = (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(),
-    s = (d.getSeconds() < 10 ? '0' : '') + d.getSeconds();
-  link.download = 'Drawing-' + h + '.' + m + '.' + s + '.png';
-  link.href = canvas.toDataURL();
-  link.click();
-  link.delete;
-}
-function getNewImage(img) {
-  img.src = 'https://source.unsplash.com/random/';
-  console.time('Image Load Time');
-}
+        // Use requestAnimationFrame to let the UI update before heavy work
+        requestAnimationFrame(function () {
+            setTimeout(function () {
+                try {
+                    lastRenderResult = LineRender.render(options);
+                    updateStats(lastRenderResult);
+                    updateLayers(lastRenderResult);
+                    Editor.saveSnapshot();
+                } catch (err) {
+                    console.error('Render error:', err);
+                    setProgress(0);
+                }
+                processing = false;
+                $('btn-generate').disabled = false;
+                setProgress(0);
+            }, 50);
+        });
+    }
 
-cv['onRuntimeInitialized'] = () => {
-  window.onload = init();
-  // window.onresize = init();
-};
+    // ── Stats + Layers ──
+    function updateStats(result) {
+        $('stat-paths').textContent = result.totalPaths;
+        $('stat-points').textContent = result.totalPoints;
+        $('stat-time').textContent = result.renderTimeMs + 'ms';
+        $('stat-gpu').textContent = (readOption('opt-gpu') && GPUProcessor.available) ? 'On' : 'Off';
+    }
+
+    function updateLayers(result) {
+        const list = $('layer-list');
+        list.innerHTML = '';
+        result.groups.forEach(function (group, i) {
+            const item = document.createElement('div');
+            item.className = 'layer-item';
+            item.innerHTML =
+                '<span class="layer-color" style="background:' + (readOption('opt-stroke-color') || '#313639') + '"></span>' +
+                '<span class="layer-name">' + group.name + '</span>' +
+                '<button class="layer-toggle" data-idx="' + i + '" title="Toggle visibility">' +
+                    (group.visible ? '&#9673;' : '&#9675;') +
+                '</button>';
+
+            item.querySelector('.layer-toggle').addEventListener('click', function (e) {
+                e.stopPropagation();
+                group.visible = !group.visible;
+                this.innerHTML = group.visible ? '&#9673;' : '&#9675;';
+                if (!group.visible) this.classList.add('hidden');
+                else this.classList.remove('hidden');
+                paper.view.draw();
+            });
+
+            item.addEventListener('click', function () {
+                document.querySelectorAll('.layer-item').forEach(function (el) { el.classList.remove('selected'); });
+                item.classList.add('selected');
+            });
+
+            list.appendChild(item);
+        });
+    }
+
+    function updateSelectionInfo(item) {
+        const el = $('selection-info');
+        if (!item) {
+            el.innerHTML = '<p class="muted">No selection</p>';
+            return;
+        }
+        let info = '';
+        if (item instanceof paper.Path) {
+            info = '<div class="info-row"><span>Type</span><span>Path</span></div>' +
+                '<div class="info-row"><span>Segments</span><span>' + item.segments.length + '</span></div>' +
+                '<div class="info-row"><span>Length</span><span>' + Math.round(item.length) + 'px</span></div>' +
+                '<div class="info-row"><span>Closed</span><span>' + (item.closed ? 'Yes' : 'No') + '</span></div>';
+        } else if (item instanceof paper.Group) {
+            info = '<div class="info-row"><span>Type</span><span>Group</span></div>' +
+                '<div class="info-row"><span>Children</span><span>' + item.children.length + '</span></div>';
+        } else {
+            info = '<div class="info-row"><span>Type</span><span>' + item.className + '</span></div>';
+        }
+        el.innerHTML = info;
+    }
+
+    function updateHistoryButtons() {
+        $('btn-undo').disabled = !Editor.canUndo;
+        $('btn-redo').disabled = !Editor.canRedo;
+    }
+
+    function updateZoomLabel(level) {
+        $('zoom-level').textContent = Math.round(level * 100) + '%';
+    }
+
+    // ── Export ──
+    function exportPNG() {
+        const canvas = $('c-output');
+        const link = document.createElement('a');
+        const now = new Date();
+        const ts = now.getHours().toString().padStart(2, '0') + '.' +
+            now.getMinutes().toString().padStart(2, '0') + '.' +
+            now.getSeconds().toString().padStart(2, '0');
+        link.download = 'LineDrawing-' + ts + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function exportSVG() {
+        const svgStr = paper.project.exportSVG({ asString: true });
+        const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = 'LineDrawing.svg';
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ── Panel toggle ──
+    function setupPanelToggles() {
+        document.querySelectorAll('.panel-title[data-toggle]').forEach(function (title) {
+            title.addEventListener('click', function () {
+                const panelId = title.getAttribute('data-toggle');
+                const body = $(panelId);
+                if (body) {
+                    title.classList.toggle('collapsed');
+                    body.classList.toggle('collapsed');
+                }
+            });
+        });
+    }
+
+    // ── Slider value displays ──
+    function setupSliderValues() {
+        document.querySelectorAll('.slider-value[data-for]').forEach(function (span) {
+            const input = $(span.getAttribute('data-for'));
+            if (input) {
+                input.addEventListener('input', function () {
+                    span.textContent = input.value;
+                });
+            }
+        });
+    }
+
+    // ── File input / drag-drop ──
+    function setupImageInput() {
+        const dropZone = $('drop-zone');
+        const fileInput = $('file-input');
+
+        dropZone.addEventListener('click', function () { fileInput.click(); });
+
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files && fileInput.files[0]) {
+                loadImage(URL.createObjectURL(fileInput.files[0]));
+            }
+        });
+
+        dropZone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', function () {
+            dropZone.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                loadImage(URL.createObjectURL(e.dataTransfer.files[0]));
+            }
+        });
+
+        $('btn-change-image').addEventListener('click', function () {
+            fileInput.click();
+        });
+    }
+
+    // ── Background option ──
+    function setupBackgroundOption() {
+        $('opt-background').addEventListener('change', function () {
+            const bgRow = $('bg-color-row');
+            if (this.value === 'custom') show(bgRow);
+            else hide(bgRow);
+            applyBackground();
+        });
+        $('opt-bg-color').addEventListener('input', function () {
+            applyBackground();
+        });
+    }
+
+    // ── Tool buttons ──
+    function setupToolbar() {
+        const toolButtons = {
+            'tool-select': 'select',
+            'tool-pan': 'pan',
+            'tool-erase': 'erase'
+        };
+        Object.keys(toolButtons).forEach(function (btnId) {
+            $(btnId).addEventListener('click', function () {
+                document.querySelectorAll('.tool-group .tool-btn').forEach(function (b) { b.classList.remove('active'); });
+                $(btnId).classList.add('active');
+                if (Editor.initialized) {
+                    Editor.setTool(toolButtons[btnId]);
+                }
+            });
+        });
+
+        $('btn-undo').addEventListener('click', function () { if (Editor.initialized) Editor.undo(); });
+        $('btn-redo').addEventListener('click', function () { if (Editor.initialized) Editor.redo(); });
+
+        $('btn-zoom-in').addEventListener('click', function () { if (Editor.initialized) Editor.zoom(1.25); });
+        $('btn-zoom-out').addEventListener('click', function () { if (Editor.initialized) Editor.zoom(0.8); });
+        $('btn-zoom-fit').addEventListener('click', function () { if (Editor.initialized) Editor.fitToView(); });
+
+        $('btn-export-png').addEventListener('click', exportPNG);
+        $('btn-export-svg').addEventListener('click', exportSVG);
+        $('btn-generate').addEventListener('click', generate);
+    }
+
+    // ── Keyboard shortcuts ──
+    function setupKeyboard() {
+        document.addEventListener('keydown', function (e) {
+            // Ignore if typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                if (Editor.initialized) Editor.undo();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+                e.preventDefault();
+                if (Editor.initialized) Editor.redo();
+            } else if (e.key === 'v' || e.key === 'V') {
+                $('tool-select').click();
+            } else if (e.key === 'h' || e.key === 'H') {
+                $('tool-pan').click();
+            } else if (e.key === 'e' || e.key === 'E') {
+                $('tool-erase').click();
+            } else if (e.key === '=' || e.key === '+') {
+                if (Editor.initialized) Editor.zoom(1.25);
+            } else if (e.key === '-') {
+                if (Editor.initialized) Editor.zoom(0.8);
+            } else if (e.key === '0') {
+                if (Editor.initialized) Editor.fitToView();
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (Editor.initialized) Editor.deleteSelection();
+            }
+        });
+    }
+
+    // ── Canvas resize ──
+    function setupCanvasResize() {
+        $('opt-canvas-size').addEventListener('change', function () {
+            if (imageLoaded) {
+                const img = $('source-img');
+                loadImage(img.src);
+            }
+        });
+
+        window.addEventListener('resize', function () {
+            fitCanvasToView();
+        });
+    }
+
+    // ── Init ──
+    function init() {
+        setLoadingText('Setting up...');
+
+        // Init GPU
+        const gpuAvailable = GPUProcessor.init($('c-gpu'));
+        if (!gpuAvailable) {
+            $('opt-gpu').checked = false;
+            $('opt-gpu').disabled = true;
+        }
+
+        setupPanelToggles();
+        setupSliderValues();
+        setupImageInput();
+        setupBackgroundOption();
+        setupToolbar();
+        setupKeyboard();
+        setupCanvasResize();
+
+        // Disable generate until image loaded
+        $('btn-generate').disabled = true;
+
+        // Hide loading
+        $('loading-overlay').classList.add('hidden');
+        setTimeout(function () { hide($('loading-overlay')); }, 500);
+    }
+
+    // Wait for OpenCV to load
+    if (typeof cv !== 'undefined' && cv.onRuntimeInitialized !== undefined) {
+        cv['onRuntimeInitialized'] = function () {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        };
+    } else {
+        // OpenCV might already be loaded or loading will set it
+        window.addEventListener('load', function checkCV() {
+            if (typeof cv !== 'undefined' && cv.Mat) {
+                init();
+            } else {
+                // Retry
+                setTimeout(checkCV, 200);
+            }
+        });
+    }
+})();
