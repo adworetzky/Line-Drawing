@@ -4,10 +4,6 @@ A browser-based application that converts photographs into stylized line drawing
 
 ## Example Output
 
-**Before & After** — original photograph next to the generated line drawing:
-
-![Before and after comparison](output/Capture.png)
-
 **Portrait** — contour lines with Catmull-Rom smoothing on paper texture:
 
 ![Portrait line drawing](output/download%20(5).png)
