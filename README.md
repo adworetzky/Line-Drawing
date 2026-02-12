@@ -2,7 +2,19 @@
 
 A browser-based application that converts photographs into stylized line drawings using contour detection, line optimization, and vector rendering. All processing runs client-side — no server required.
 
-![Line Drawing Studio](assets/testimage.jpg)
+## Example Output
+
+**Before & After** — original photograph next to the generated line drawing:
+
+![Before and after comparison](output/Capture.png)
+
+**Portrait** — contour lines with Catmull-Rom smoothing on paper texture:
+
+![Portrait line drawing](output/download%20(5).png)
+
+**Architecture** — Bradbury Building rendered with brightness threshold detection:
+
+![Architecture line drawing](output/download.png)
 
 ## Getting Started
 
