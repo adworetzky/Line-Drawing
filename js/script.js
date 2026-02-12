@@ -40,6 +40,25 @@
         if (el) el.textContent = msg;
     }
 
+    // ── Canvas dimensions (inches + DPI) ──
+    function getCanvasDimensions() {
+        var w = parseFloat($('opt-width-in').value) || 8.5;
+        var h = parseFloat($('opt-height-in').value) || 11;
+        var dpi = parseInt(readOption('opt-dpi')) || 96;
+        return {
+            widthIn: w,
+            heightIn: h,
+            dpi: dpi,
+            widthPx: Math.round(w * dpi),
+            heightPx: Math.round(h * dpi)
+        };
+    }
+
+    function updatePixelReadout() {
+        var dim = getCanvasDimensions();
+        $('dim-pixel-readout').textContent = dim.widthPx + ' x ' + dim.heightPx;
+    }
+
     // ── Image loading ──
     function loadImage(src) {
         const img = $('source-img');
@@ -52,22 +71,23 @@
             hide($('empty-state'));
             show($('canvas-wrapper'));
 
+            var dim = getCanvasDimensions();
+
             // Draw to input canvas
             const cInput = $('c-input');
-            const size = parseInt(readOption('opt-canvas-size')) || 1080;
-            cInput.width = size;
-            cInput.height = size;
+            cInput.width = dim.widthPx;
+            cInput.height = dim.heightPx;
             const ctx = cInput.getContext('2d');
-            const scale = Math.max(size / img.width, size / img.height);
-            const x = (size - img.width * scale) / 2;
-            const y = (size - img.height * scale) / 2;
-            ctx.clearRect(0, 0, size, size);
+            const scale = Math.max(dim.widthPx / img.width, dim.heightPx / img.height);
+            const x = (dim.widthPx - img.width * scale) / 2;
+            const y = (dim.heightPx - img.height * scale) / 2;
+            ctx.clearRect(0, 0, dim.widthPx, dim.heightPx);
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
 
             // Setup output canvas
             const cOutput = $('c-output');
-            cOutput.width = size;
-            cOutput.height = size;
+            cOutput.width = dim.widthPx;
+            cOutput.height = dim.heightPx;
 
             // Fit canvas in view
             fitCanvasToView();
@@ -259,11 +279,24 @@
     }
 
     function exportSVG() {
-        const svgStr = paper.project.exportSVG({ asString: true });
-        const blob = new Blob([svgStr], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = 'LineDrawing.svg';
+        var dim = getCanvasDimensions();
+        var svgNode = paper.project.exportSVG({ asString: false });
+
+        // Set physical dimensions so pen plotters interpret real-world size
+        svgNode.setAttribute('width', dim.widthIn + 'in');
+        svgNode.setAttribute('height', dim.heightIn + 'in');
+        svgNode.setAttribute('viewBox', '0 0 ' + dim.widthPx + ' ' + dim.heightPx);
+
+        // Serialize to string
+        var serializer = new XMLSerializer();
+        var svgStr = serializer.serializeToString(svgNode);
+
+        var blob = new Blob([svgStr], { type: 'image/svg+xml' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        var wLabel = dim.widthIn.toString().replace('.', '_');
+        var hLabel = dim.heightIn.toString().replace('.', '_');
+        link.download = 'LineDrawing-' + wLabel + 'x' + hLabel + 'in.svg';
         link.href = url;
         link.click();
         URL.revokeObjectURL(url);
@@ -400,14 +433,76 @@
         });
     }
 
-    // ── Canvas resize ──
-    function setupCanvasResize() {
-        $('opt-canvas-size').addEventListener('change', function () {
+    // ── Dimension controls ──
+    function setupDimensionControls() {
+        var widthIn = $('opt-width-in');
+        var heightIn = $('opt-height-in');
+        var preset = $('opt-paper-preset');
+        var dpi = $('opt-dpi');
+        var btnPortrait = $('btn-portrait');
+        var btnLandscape = $('btn-landscape');
+
+        function reloadIfNeeded() {
+            updatePixelReadout();
             if (imageLoaded) {
-                const img = $('source-img');
-                loadImage(img.src);
+                loadImage($('source-img').src);
+            }
+        }
+
+        // Paper preset fills in width/height
+        preset.addEventListener('change', function () {
+            if (preset.value === 'custom') return;
+            var parts = preset.value.split('x');
+            var pw = parseFloat(parts[0]);
+            var ph = parseFloat(parts[1]);
+            // Respect current orientation
+            if (btnLandscape.classList.contains('active') && ph > pw) {
+                widthIn.value = ph;
+                heightIn.value = pw;
+            } else {
+                widthIn.value = pw;
+                heightIn.value = ph;
+            }
+            reloadIfNeeded();
+        });
+
+        // Manual width/height edits switch to Custom
+        widthIn.addEventListener('change', function () {
+            preset.value = 'custom';
+            reloadIfNeeded();
+        });
+        heightIn.addEventListener('change', function () {
+            preset.value = 'custom';
+            reloadIfNeeded();
+        });
+
+        dpi.addEventListener('change', reloadIfNeeded);
+
+        // Orientation buttons swap width/height
+        btnPortrait.addEventListener('click', function () {
+            btnPortrait.classList.add('active');
+            btnLandscape.classList.remove('active');
+            var w = parseFloat(widthIn.value);
+            var h = parseFloat(heightIn.value);
+            if (w > h) {
+                widthIn.value = h;
+                heightIn.value = w;
+                reloadIfNeeded();
             }
         });
+        btnLandscape.addEventListener('click', function () {
+            btnLandscape.classList.add('active');
+            btnPortrait.classList.remove('active');
+            var w = parseFloat(widthIn.value);
+            var h = parseFloat(heightIn.value);
+            if (h > w) {
+                widthIn.value = h;
+                heightIn.value = w;
+                reloadIfNeeded();
+            }
+        });
+
+        updatePixelReadout();
 
         window.addEventListener('resize', function () {
             fitCanvasToView();
@@ -431,7 +526,7 @@
         setupBackgroundOption();
         setupToolbar();
         setupKeyboard();
-        setupCanvasResize();
+        setupDimensionControls();
 
         // Disable generate until image loaded
         $('btn-generate').disabled = true;

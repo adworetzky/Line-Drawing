@@ -389,6 +389,36 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 }
 .info-row span:last-child { color: var(--text-primary); }
 
+/* === Dimensions panel === */
+.dimensions-row {
+    display: flex; gap: 8px;
+}
+.dim-input { flex: 1; }
+.dim-input input[type="number"] {
+    width: 100%;
+    background: var(--bg-input); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; font-size: 12px;
+    outline: none;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+}
+.dim-input input[type="number"]::-webkit-inner-spin-button,
+.dim-input input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
+}
+.dim-input input[type="number"]:focus { border-color: var(--accent); }
+.orientation-row { display: flex; gap: 4px; }
+.orient-btn {
+    width: 34px; height: 34px;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-secondary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition);
+}
+.orient-btn:hover { border-color: var(--accent-dim); color: var(--text-primary); }
+.orient-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
 /* === Keyboard shortcuts hint === */
 .muted { color: var(--text-muted); }
 
