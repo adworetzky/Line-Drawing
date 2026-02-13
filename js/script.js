@@ -184,6 +184,11 @@
             strokeWidth: readOption('opt-stroke-width'),
             strokeColor: readOption('opt-stroke-color'),
             useGPU: readOption('opt-gpu'),
+            hatchEnabled: readOption('opt-hatch-enable'),
+            hatchType: readOption('opt-hatch-type'),
+            hatchSpacing: readOption('opt-hatch-spacing'),
+            hatchAngle: readOption('opt-hatch-angle'),
+            hatchBrightness: readOption('opt-hatch-brightness'),
             onProgress: function (pct) {
                 setProgress(pct, 'Processing... ' + pct + '%');
             }
@@ -333,8 +338,9 @@
         document.querySelectorAll('.slider-value[data-for]').forEach(function (span) {
             const input = $(span.getAttribute('data-for'));
             if (input) {
+                var suffix = span.getAttribute('data-suffix') || '';
                 input.addEventListener('input', function () {
-                    span.textContent = input.value;
+                    span.textContent = input.value + suffix;
                 });
             }
         });
@@ -383,6 +389,15 @@
         });
         $('opt-bg-color').addEventListener('input', function () {
             applyBackground();
+        });
+    }
+
+    // ── Hatching toggle ──
+    function setupHatchingOption() {
+        $('opt-hatch-enable').addEventListener('change', function () {
+            var opts = $('hatch-options');
+            if (this.checked) show(opts);
+            else hide(opts);
         });
     }
 
@@ -542,6 +557,7 @@
         setupSliderValues();
         setupImageInput();
         setupBackgroundOption();
+        setupHatchingOption();
         setupToolbar();
         setupKeyboard();
         setupDimensionControls();

@@ -167,6 +167,107 @@ const LineRender = (function () {
     }
 
     /**
+     * Generate brightness-adaptive hatching lines from the source canvas.
+     * Returns an array of point arrays (line segments).
+     *
+     * For cross/triple hatching, each successive pass uses a tighter
+     * brightness threshold so that only darker areas receive additional
+     * hatch layers — building up natural tonal density.
+     */
+    function generateHatching(inputCanvas, opts) {
+        var spacing  = opts.hatchSpacing    || 8;
+        var baseAngle = (opts.hatchAngle    || 45) * Math.PI / 180;
+        var type     = opts.hatchType       || 'cross';
+        var maxBright = opts.hatchBrightness || 170;
+        var stepSize  = 2; // sample every 2 px along each scan line
+
+        var w = inputCanvas.width;
+        var h = inputCanvas.height;
+        var ctx = inputCanvas.getContext('2d');
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var pixels = imageData.data;
+        var diag = Math.sqrt(w * w + h * h);
+
+        function brightness(x, y) {
+            var ix = Math.round(x);
+            var iy = Math.round(y);
+            if (ix < 0 || ix >= w || iy < 0 || iy >= h) return 255;
+            var idx = (iy * w + ix) * 4;
+            return pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114;
+        }
+
+        // Build pass list — each pass gets a progressively tighter threshold
+        var passes;
+        if (type === 'parallel') {
+            passes = [{ angle: baseAngle, thresh: maxBright }];
+        } else if (type === 'cross') {
+            passes = [
+                { angle: baseAngle,                   thresh: maxBright },
+                { angle: baseAngle + Math.PI / 2,     thresh: maxBright * 0.6 }
+            ];
+        } else { // triple
+            passes = [
+                { angle: baseAngle,                       thresh: maxBright },
+                { angle: baseAngle + Math.PI / 3,         thresh: maxBright * 0.55 },
+                { angle: baseAngle + 2 * Math.PI / 3,     thresh: maxBright * 0.3 }
+            ];
+        }
+
+        var segments = [];
+
+        passes.forEach(function (pass) {
+            var cosA = Math.cos(pass.angle);
+            var sinA = Math.sin(pass.angle);
+            var numLines = Math.ceil(diag / spacing);
+
+            var cx = w / 2;
+            var cy = h / 2;
+
+            for (var i = -numLines; i <= numLines; i++) {
+                var off = i * spacing;
+                // Perpendicular offset from center, line runs along (cosA, sinA)
+                var lx0 = cx + (-sinA) * off - cosA * diag;
+                var ly0 = cy +  cosA  * off - sinA * diag;
+                var lx1 = cx + (-sinA) * off + cosA * diag;
+                var ly1 = cy +  cosA  * off + sinA * diag;
+
+                var dx = lx1 - lx0;
+                var dy = ly1 - ly0;
+                var len = Math.sqrt(dx * dx + dy * dy);
+                var steps = Math.ceil(len / stepSize);
+                var sx = dx / steps;
+                var sy = dy / steps;
+
+                var seg = [];
+
+                for (var s = 0; s <= steps; s++) {
+                    var px = lx0 + sx * s;
+                    var py = ly0 + sy * s;
+
+                    // Out of canvas bounds → break segment
+                    if (px < 0 || px >= w || py < 0 || py >= h) {
+                        if (seg.length >= 2) segments.push(seg);
+                        seg = [];
+                        continue;
+                    }
+
+                    var b = brightness(px, py);
+
+                    if (b < pass.thresh) {
+                        seg.push([px, py]);
+                    } else {
+                        if (seg.length >= 2) segments.push(seg);
+                        seg = [];
+                    }
+                }
+                if (seg.length >= 2) segments.push(seg);
+            }
+        });
+
+        return segments;
+    }
+
+    /**
      * Sort paths within each group using greedy nearest-neighbor to minimize
      * pen travel distance (important for pen plotters).
      */
@@ -224,6 +325,7 @@ const LineRender = (function () {
             smoothType, tension,
             strokeWidth, strokeColor,
             useGPU,
+            hatchEnabled, hatchType, hatchSpacing, hatchAngle, hatchBrightness,
             onProgress
         } = options;
 
@@ -278,6 +380,37 @@ const LineRender = (function () {
         });
 
         if (src) src.delete();
+
+        // Generate hatching if enabled
+        if (hatchEnabled) {
+            if (onProgress) onProgress(92);
+
+            var hatchSegs = generateHatching(inputCanvas, {
+                hatchType: hatchType,
+                hatchSpacing: hatchSpacing,
+                hatchAngle: hatchAngle,
+                hatchBrightness: hatchBrightness
+            });
+
+            var hatchGroup = new paper.Group();
+            hatchGroup.name = 'Hatching (' + (hatchType || 'cross') + ')';
+
+            hatchSegs.forEach(function (seg) {
+                var simplified = simplifyPoints(seg, 'rdp', 1);
+                if (simplified.length < 2) return;
+                var path = new paper.Path(simplified);
+                path.closed = false;
+                hatchGroup.addChild(path);
+                totalPaths++;
+                totalPoints += simplified.length;
+            });
+
+            hatchGroup.strokeWidth = strokeWidth;
+            hatchGroup.strokeScaling = false;
+            hatchGroup.miterLimit = 5;
+            hatchGroup.strokeColor = strokeColor;
+            allGroups.push(hatchGroup);
+        }
 
         // Sort paths within each group to minimize pen travel distance
         sortPathsForPlotter(allGroups);

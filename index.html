@@ -183,6 +183,47 @@
                 </div>
             </section>
 
+            <!-- Hatching -->
+            <section class="panel">
+                <h3 class="panel-title" data-toggle="panel-hatching">Hatching</h3>
+                <div class="panel-body" id="panel-hatching">
+                    <label class="control-label">
+                        <input type="checkbox" id="opt-hatch-enable"> Enable Hatching
+                    </label>
+                    <div id="hatch-options" style="display:none;">
+                        <label class="control-label">
+                            Pattern
+                            <select id="opt-hatch-type">
+                                <option value="parallel">Parallel Lines</option>
+                                <option value="cross" selected>Cross-hatch</option>
+                                <option value="triple">Triple-hatch</option>
+                            </select>
+                        </label>
+                        <label class="control-label">
+                            Line Spacing
+                            <div class="slider-row">
+                                <input type="range" id="opt-hatch-spacing" min="3" max="24" step="1" value="8">
+                                <span class="slider-value" data-for="opt-hatch-spacing">8</span>
+                            </div>
+                        </label>
+                        <label class="control-label">
+                            Angle
+                            <div class="slider-row">
+                                <input type="range" id="opt-hatch-angle" min="0" max="175" step="5" value="45">
+                                <span class="slider-value" data-for="opt-hatch-angle" data-suffix="&deg;">45&deg;</span>
+                            </div>
+                        </label>
+                        <label class="control-label">
+                            Brightness Cutoff
+                            <div class="slider-row">
+                                <input type="range" id="opt-hatch-brightness" min="40" max="240" step="5" value="170">
+                                <span class="slider-value" data-for="opt-hatch-brightness">170</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
             <!-- Style settings -->
             <section class="panel">
                 <h3 class="panel-title" data-toggle="panel-style">Style</h3>
