@@ -436,10 +436,108 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 /* === Keyboard shortcuts hint === */
 .muted { color: var(--text-muted); }
 
+/* === Presets bar === */
+.sidebar-presets {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-panel);
+}
+
+/* === Generate bar === */
+.generate-bar {
+    display: flex; align-items: center; gap: 10px;
+    margin: 14px;
+}
+.generate-bar .generate-btn {
+    flex: 1; margin: 0;
+}
+.auto-gen-label {
+    font-size: 11px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 4px;
+    white-space: nowrap; cursor: pointer;
+    font-weight: 500;
+}
+.auto-gen-label input[type="checkbox"] { accent-color: var(--accent); }
+
+/* === Sidebar overlay (mobile drawer backdrop) === */
+#sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+#sidebar-overlay.visible { display: block; }
+
+/* === Mobile toolbar buttons === */
+.sidebar-toggle { display: none; }
+.mobile-generate { display: none; }
+
 /* === Responsive: hide right sidebar on narrow screens === */
 @media (max-width: 1100px) {
     #sidebar-right { display: none; }
 }
-@media (max-width: 800px) {
-    :root { --sidebar-w: 240px; }
+
+/* === Tablet === */
+@media (max-width: 900px) {
+    :root { --sidebar-w: 260px; }
+}
+
+/* === Mobile === */
+@media (max-width: 768px) {
+    :root { --sidebar-w: 300px; }
+
+    /* Toolbar */
+    .sidebar-toggle { display: flex; }
+    .mobile-generate { display: flex; }
+    .toolbar-left { min-width: auto; gap: 6px; }
+    .toolbar-right { min-width: auto; gap: 4px; }
+    .toolbar-center { display: none; }
+    .app-title { font-size: 13px; }
+
+    /* Sidebar becomes left-drawer overlay */
+    #sidebar-left {
+        position: fixed;
+        top: var(--toolbar-h);
+        left: 0; bottom: 0;
+        width: var(--sidebar-w);
+        min-width: var(--sidebar-w);
+        z-index: 250;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: none;
+    }
+    #sidebar-left.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+    }
+
+    #sidebar-right { display: none; }
+
+    /* Canvas takes full width */
+    #canvas-area { width: 100%; }
+
+    /* Touch-friendly controls */
+    input[type="range"]::-webkit-slider-thumb {
+        width: 20px; height: 20px;
+    }
+    .tool-btn { width: 40px; height: 40px; }
+    select { padding: 8px; font-size: 13px; }
+    .panel-title { padding: 12px 14px; font-size: 12px; }
+    .panel-body { padding: 10px 14px 16px; gap: 12px; }
+    .control-label { gap: 6px; font-size: 12px; }
+
+    /* Export buttons compact */
+    .export-btn { padding: 6px 10px; font-size: 11px; }
+}
+
+/* === Small mobile === */
+@media (max-width: 480px) {
+    .export-btn:not(.primary) { display: none; }
+    .app-title { display: none; }
+    :root { --sidebar-w: 100vw; }
+    #sidebar-left {
+        width: 100vw; min-width: 100vw;
+    }
 }

@@ -27,6 +27,9 @@
     <!-- Top toolbar -->
     <header id="toolbar">
         <div class="toolbar-left">
+            <button id="btn-sidebar-toggle" class="tool-btn sidebar-toggle" title="Settings">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
             <h1 class="app-title">Line Drawing Studio</h1>
         </div>
         <div class="toolbar-center">
@@ -65,6 +68,9 @@
             </div>
         </div>
         <div class="toolbar-right">
+            <button id="btn-generate-mobile" class="tool-btn mobile-generate" title="Generate">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            </button>
             <button id="btn-toggle-source" class="tool-btn" title="Toggle source image overlay">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             </button>
@@ -74,8 +80,25 @@
     </header>
 
     <div id="app-container">
+        <div id="sidebar-overlay"></div>
+
         <!-- Left sidebar: controls -->
         <aside id="sidebar-left">
+            <!-- Presets -->
+            <div class="sidebar-presets">
+                <label class="control-label">
+                    Preset
+                    <select id="opt-preset">
+                        <option value="custom">Custom</option>
+                        <option value="sketch">Sketch</option>
+                        <option value="technical">Technical</option>
+                        <option value="hatched">Hatched</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="bold">Bold</option>
+                    </select>
+                </label>
+            </div>
+
             <!-- Image source -->
             <section class="panel">
                 <h3 class="panel-title" data-toggle="panel-source">Source Image</h3>
@@ -240,6 +263,13 @@
                         <input type="color" id="opt-stroke-color" value="#313639">
                     </label>
                     <label class="control-label">
+                        Weight Variation
+                        <div class="slider-row">
+                            <input type="range" id="opt-weight-var" min="0" max="3" step="0.1" value="0">
+                            <span class="slider-value" data-for="opt-weight-var">0</span>
+                        </div>
+                    </label>
+                    <label class="control-label">
                         Background
                         <select id="opt-background">
                             <option value="paper">Paper Texture</option>
@@ -294,6 +324,13 @@
                             <option value="300">300 (print)</option>
                         </select>
                     </label>
+                    <label class="control-label">
+                        Margin
+                        <div class="slider-row">
+                            <input type="range" id="opt-margin" min="0" max="2" step="0.125" value="0">
+                            <span class="slider-value" data-for="opt-margin" data-suffix=" in">0 in</span>
+                        </div>
+                    </label>
                     <div class="stat-row">
                         <span>Pixel size</span>
                         <span id="dim-pixel-readout">816 x 1056</span>
@@ -312,7 +349,12 @@
                 </div>
             </section>
 
-            <button id="btn-generate" class="generate-btn">Generate Line Drawing</button>
+            <div class="generate-bar">
+                <button id="btn-generate" class="generate-btn">Generate</button>
+                <label class="auto-gen-label">
+                    <input type="checkbox" id="opt-auto-generate"> Auto
+                </label>
+            </div>
         </aside>
 
         <!-- Main canvas area -->

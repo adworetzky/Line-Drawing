@@ -9,6 +9,48 @@
     let imageLoaded = false;
     let processing = false;
     let lastRenderResult = null;
+    let autoGenTimer = null;
+
+    // ── Presets ──
+    const PRESETS = {
+        sketch: {
+            'opt-levels': 4, 'opt-thresh-low': 30, 'opt-thresh-high': 160,
+            'opt-simplify-method': 'rdp', 'opt-tolerance': 3.5,
+            'opt-smooth-type': 'catmull-rom', 'opt-tension': -0.5,
+            'opt-stroke-width': 0.7, 'opt-edge-method': 'threshold',
+            'opt-hatch-enable': false, 'opt-weight-var': 0.4
+        },
+        technical: {
+            'opt-levels': 10, 'opt-thresh-low': 15, 'opt-thresh-high': 200,
+            'opt-simplify-method': 'rdp', 'opt-tolerance': 1,
+            'opt-smooth-type': 'none', 'opt-tension': 0,
+            'opt-stroke-width': 0.5, 'opt-edge-method': 'canny',
+            'opt-hatch-enable': false, 'opt-weight-var': 0
+        },
+        hatched: {
+            'opt-levels': 3, 'opt-thresh-low': 30, 'opt-thresh-high': 150,
+            'opt-simplify-method': 'rdp', 'opt-tolerance': 2,
+            'opt-smooth-type': 'catmull-rom', 'opt-tension': -0.8,
+            'opt-stroke-width': 0.6, 'opt-edge-method': 'threshold',
+            'opt-hatch-enable': true, 'opt-hatch-type': 'cross',
+            'opt-hatch-spacing': 6, 'opt-hatch-angle': 45,
+            'opt-hatch-brightness': 170, 'opt-weight-var': 0
+        },
+        minimal: {
+            'opt-levels': 2, 'opt-thresh-low': 40, 'opt-thresh-high': 120,
+            'opt-simplify-method': 'visvalingam', 'opt-tolerance': 6,
+            'opt-smooth-type': 'geometric', 'opt-tension': 0.5,
+            'opt-stroke-width': 1, 'opt-edge-method': 'threshold',
+            'opt-hatch-enable': false, 'opt-weight-var': 0
+        },
+        bold: {
+            'opt-levels': 8, 'opt-thresh-low': 10, 'opt-thresh-high': 220,
+            'opt-simplify-method': 'rdp', 'opt-tolerance': 1.5,
+            'opt-smooth-type': 'catmull-rom', 'opt-tension': -0.6,
+            'opt-stroke-width': 1.5, 'opt-edge-method': 'threshold',
+            'opt-hatch-enable': false, 'opt-weight-var': 0.8
+        }
+    };
 
     // ── DOM refs (populated in init) ──
     const $ = (id) => document.getElementById(id);
@@ -73,16 +115,19 @@
 
             var dim = getCanvasDimensions();
 
-            // Draw to input canvas (contain-fit: full image visible, white fill for empty area)
+            // Draw to input canvas (contain-fit with optional margin)
             const cInput = $('c-input');
             cInput.width = dim.widthPx;
             cInput.height = dim.heightPx;
             const ctx = cInput.getContext('2d');
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, dim.widthPx, dim.heightPx);
-            const scale = Math.min(dim.widthPx / img.width, dim.heightPx / img.height);
-            const x = (dim.widthPx - img.width * scale) / 2;
-            const y = (dim.heightPx - img.height * scale) / 2;
+            var margin = (readOption('opt-margin') || 0) * dim.dpi;
+            var drawW = dim.widthPx - margin * 2;
+            var drawH = dim.heightPx - margin * 2;
+            const scale = Math.min(drawW / img.width, drawH / img.height);
+            const x = margin + (drawW - img.width * scale) / 2;
+            const y = margin + (drawH - img.height * scale) / 2;
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
 
             // Setup output canvas
@@ -199,6 +244,11 @@
             setTimeout(function () {
                 try {
                     lastRenderResult = LineRender.render(options);
+                    var weightVar = readOption('opt-weight-var');
+                    if (weightVar > 0) {
+                        applyWeightVariation(lastRenderResult, $('c-input'),
+                            readOption('opt-stroke-width'), weightVar);
+                    }
                     updateStats(lastRenderResult);
                     updateLayers(lastRenderResult);
                     Editor.saveSnapshot();
@@ -399,6 +449,105 @@
         });
     }
 
+    // ── Weight variation (brightness-adaptive stroke width) ──
+    function applyWeightVariation(result, inputCanvas, baseWidth, variation) {
+        var w = inputCanvas.width;
+        var h = inputCanvas.height;
+        var ctx = inputCanvas.getContext('2d');
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var pixels = imageData.data;
+
+        result.groups.forEach(function (group) {
+            for (var i = 0; i < group.children.length; i++) {
+                var path = group.children[i];
+                if (!path.bounds || path.bounds.width === 0) continue;
+                var cx = Math.round(Math.max(0, Math.min(w - 1, path.bounds.center.x)));
+                var cy = Math.round(Math.max(0, Math.min(h - 1, path.bounds.center.y)));
+                var idx = (cy * w + cx) * 4;
+                var b = pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114;
+                // Darker areas → thicker strokes
+                path.strokeWidth = baseWidth * (1 + variation * (1 - b / 255));
+            }
+        });
+        paper.view.draw();
+    }
+
+    // ── Presets ──
+    function applyPreset(name) {
+        var preset = PRESETS[name];
+        if (!preset) return;
+        Object.keys(preset).forEach(function (id) {
+            var el = $(id);
+            if (!el) return;
+            var val = preset[id];
+            if (el.type === 'checkbox') {
+                el.checked = val;
+                el.dispatchEvent(new Event('change'));
+            } else if (el.type === 'range') {
+                el.value = val;
+                el.dispatchEvent(new Event('input'));
+            } else {
+                el.value = val;
+                el.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    function setupPresets() {
+        $('opt-preset').addEventListener('change', function () {
+            if (this.value !== 'custom') {
+                applyPreset(this.value);
+                scheduleAutoGenerate();
+            }
+        });
+    }
+
+    // ── Auto-generate ──
+    function scheduleAutoGenerate() {
+        if (!readOption('opt-auto-generate') || !imageLoaded || processing) return;
+        clearTimeout(autoGenTimer);
+        autoGenTimer = setTimeout(generate, 600);
+    }
+
+    function setupAutoGenerate() {
+        document.querySelectorAll('#sidebar-left input, #sidebar-left select').forEach(function (el) {
+            if (el.id === 'opt-auto-generate' || el.id === 'opt-preset' ||
+                el.id === 'file-input') return;
+            var evt = (el.type === 'range') ? 'input' : 'change';
+            el.addEventListener(evt, function () {
+                // Any manual change resets preset to Custom
+                if (el.id !== 'opt-preset') {
+                    var presetEl = $('opt-preset');
+                    if (presetEl.value !== 'custom') presetEl.value = 'custom';
+                }
+                scheduleAutoGenerate();
+            });
+        });
+    }
+
+    // ── Mobile sidebar ──
+    function setupMobileSidebar() {
+        var sidebar = $('sidebar-left');
+        var overlay = $('sidebar-overlay');
+
+        $('btn-sidebar-toggle').addEventListener('click', function () {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('visible');
+        });
+
+        overlay.addEventListener('click', function () {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('visible');
+        });
+
+        // Mobile generate button triggers generate + closes drawer
+        $('btn-generate-mobile').addEventListener('click', function () {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('visible');
+            generate();
+        });
+    }
+
     // ── Hatching toggle ──
     function setupHatchingOption() {
         $('opt-hatch-enable').addEventListener('change', function () {
@@ -440,7 +589,12 @@
 
         $('btn-export-png').addEventListener('click', exportPNG);
         $('btn-export-svg').addEventListener('click', exportSVG);
-        $('btn-generate').addEventListener('click', generate);
+        $('btn-generate').addEventListener('click', function () {
+            // Close mobile drawer if open
+            $('sidebar-left').classList.remove('open');
+            $('sidebar-overlay').classList.remove('visible');
+            generate();
+        });
     }
 
     // ── Keyboard shortcuts ──
@@ -518,6 +672,9 @@
 
         dpi.addEventListener('change', reloadIfNeeded);
 
+        // Margin change reloads image to re-draw with updated inset
+        $('opt-margin').addEventListener('change', reloadIfNeeded);
+
         // Orientation buttons swap width/height
         btnPortrait.addEventListener('click', function () {
             btnPortrait.classList.add('active');
@@ -565,9 +722,12 @@
         setupImageInput();
         setupBackgroundOption();
         setupHatchingOption();
+        setupPresets();
         setupToolbar();
         setupKeyboard();
         setupDimensionControls();
+        setupMobileSidebar();
+        setupAutoGenerate();
 
         // Disable generate until image loaded
         $('btn-generate').disabled = true;
