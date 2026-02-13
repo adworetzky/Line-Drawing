@@ -436,6 +436,22 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
 /* === Keyboard shortcuts hint === */
 .muted { color: var(--text-muted); }
 
+/* === Auto-tune button === */
+.auto-tune-btn {
+    padding: 7px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--accent-dim);
+    background: transparent;
+    color: var(--accent);
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    width: 100%;
+    letter-spacing: 0.2px;
+}
+.auto-tune-btn:hover { background: var(--accent-dim); color: var(--text-primary); }
+.auto-tune-btn:disabled { opacity: 0.4; cursor: default; }
+
 /* === Presets bar === */
 .sidebar-presets {
     padding: 10px 14px;

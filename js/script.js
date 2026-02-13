@@ -103,64 +103,67 @@
 
     // ── Image loading ──
     function loadImage(src) {
-        const img = $('source-img');
+        var img = $('source-img');
         img.onload = function () {
             imageLoaded = true;
-            // Show preview
             $('preview-img').src = img.src;
             show($('source-preview'));
             hide($('drop-zone'));
             hide($('empty-state'));
             show($('canvas-wrapper'));
-
-            var dim = getCanvasDimensions();
-
-            // Draw to input canvas (contain-fit with optional margin)
-            const cInput = $('c-input');
-            cInput.width = dim.widthPx;
-            cInput.height = dim.heightPx;
-            const ctx = cInput.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, dim.widthPx, dim.heightPx);
-            var margin = (readOption('opt-margin') || 0) * dim.dpi;
-            var drawW = dim.widthPx - margin * 2;
-            var drawH = dim.heightPx - margin * 2;
-            const scale = Math.min(drawW / img.width, drawH / img.height);
-            const x = margin + (drawW - img.width * scale) / 2;
-            const y = margin + (drawH - img.height * scale) / 2;
-            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-
-            // Setup output canvas
-            const cOutput = $('c-output');
-            cOutput.width = dim.widthPx;
-            cOutput.height = dim.heightPx;
-
-            // Setup Paper.js on the output canvas (before fitCanvasToView so
-            // Paper.js can set CSS dimensions, then we sync c-input to match)
-            paper.setup(cOutput);
-
-            // Sync c-input CSS size with c-output (Paper.js may adjust for HiDPI)
-            cInput.style.width = cOutput.style.width || (dim.widthPx + 'px');
-            cInput.style.height = cOutput.style.height || (dim.heightPx + 'px');
-
-            // Fit canvas in view
-            fitCanvasToView();
-
-            // Initialize editor tools
-            Editor.init({
-                onSelectionChange: updateSelectionInfo,
-                onHistoryChange: updateHistoryButtons,
-                onZoomChange: updateZoomLabel
-            });
-
-            $('btn-generate').disabled = false;
-            applyBackground();
+            setupCanvas();
         };
         img.onerror = function () {
             console.error('Failed to load image');
             imageLoaded = false;
         };
         img.src = src;
+    }
+
+    // ── Canvas setup (called on load AND on dimension/margin changes) ──
+    function setupCanvas() {
+        var img = $('source-img');
+        if (!img.naturalWidth) return;
+
+        var dim = getCanvasDimensions();
+
+        // Draw to input canvas (contain-fit with optional margin)
+        var cInput = $('c-input');
+        cInput.width = dim.widthPx;
+        cInput.height = dim.heightPx;
+        var ctx = cInput.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, dim.widthPx, dim.heightPx);
+        var margin = (readOption('opt-margin') || 0) * dim.dpi;
+        var drawW = dim.widthPx - margin * 2;
+        var drawH = dim.heightPx - margin * 2;
+        var scale = Math.min(drawW / img.naturalWidth, drawH / img.naturalHeight);
+        var x = margin + (drawW - img.naturalWidth * scale) / 2;
+        var y = margin + (drawH - img.naturalHeight * scale) / 2;
+        ctx.drawImage(img, x, y, img.naturalWidth * scale, img.naturalHeight * scale);
+
+        // Setup output canvas
+        var cOutput = $('c-output');
+        cOutput.width = dim.widthPx;
+        cOutput.height = dim.heightPx;
+
+        // Setup Paper.js on the output canvas
+        paper.setup(cOutput);
+
+        // Sync c-input CSS size with c-output (Paper.js may adjust for HiDPI)
+        cInput.style.width = cOutput.style.width || (dim.widthPx + 'px');
+        cInput.style.height = cOutput.style.height || (dim.heightPx + 'px');
+
+        fitCanvasToView();
+
+        Editor.init({
+            onSelectionChange: updateSelectionInfo,
+            onHistoryChange: updateHistoryButtons,
+            onZoomChange: updateZoomLabel
+        });
+
+        $('btn-generate').disabled = false;
+        applyBackground();
     }
 
     function fitCanvasToView() {
@@ -449,6 +452,90 @@
         });
     }
 
+    // ── Set a control value and update its display ──
+    function setControlValue(id, val) {
+        var el = $(id);
+        if (!el) return;
+        el.value = val;
+        var span = document.querySelector('.slider-value[data-for="' + id + '"]');
+        if (span) {
+            var suffix = span.getAttribute('data-suffix') || '';
+            span.textContent = val + suffix;
+        }
+    }
+
+    // ── Auto-threshold: histogram-based parameter tuning ──
+    function autoThreshold() {
+        if (!imageLoaded) return;
+
+        var cInput = $('c-input');
+        var w = cInput.width;
+        var h = cInput.height;
+        if (!w || !h) return;
+
+        var ctx = cInput.getContext('2d');
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var pixels = imageData.data;
+
+        // Build brightness histogram, skip near-white background/margins
+        var histogram = new Array(256).fill(0);
+        var contentPixels = 0;
+        for (var i = 0; i < pixels.length; i += 4) {
+            var lum = Math.round(
+                pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114
+            );
+            if (lum < 248) {
+                histogram[lum]++;
+                contentPixels++;
+            }
+        }
+
+        if (contentPixels < 100) return;
+
+        // Find brightness percentiles of the content pixels
+        var cumulative = 0;
+        var p5 = 0, p95 = 0;
+        for (var b = 0; b < 256; b++) {
+            cumulative += histogram[b];
+            var pct = cumulative / contentPixels;
+            if (!p5 && pct >= 0.05) p5 = b;
+            if (!p95 && pct >= 0.95) p95 = b;
+        }
+
+        // Bracket the content range
+        var threshLow = Math.max(10, p5);
+        var threshHigh = Math.min(240, p95);
+
+        // Ensure minimum usable range
+        if (threshHigh - threshLow < 40) {
+            threshLow = Math.max(10, threshLow - 20);
+            threshHigh = Math.min(240, threshHigh + 20);
+        }
+
+        // Clamp to slider bounds
+        threshLow = Math.max(0, Math.min(254, Math.round(threshLow)));
+        threshHigh = Math.max(1, Math.min(255, Math.round(threshHigh)));
+
+        // More levels for wider brightness ranges
+        var range = threshHigh - threshLow;
+        var levels = Math.max(3, Math.min(15, Math.round(range / 18)));
+
+        // Min contour points: scale with resolution to filter noise
+        var resolution = Math.sqrt(w * h);
+        var minPoints = resolution > 2000 ? 4 : 3;
+
+        // Apply to UI
+        setControlValue('opt-thresh-low', threshLow);
+        setControlValue('opt-thresh-high', threshHigh);
+        setControlValue('opt-levels', levels);
+        setControlValue('opt-min-points', minPoints);
+
+        $('opt-preset').value = 'custom';
+
+        // Generate immediately
+        generate();
+    }
+
     // ── Weight variation (brightness-adaptive stroke width) ──
     function applyWeightVariation(result, inputCanvas, baseWidth, variation) {
         var w = inputCanvas.width;
@@ -587,6 +674,7 @@
             $('btn-toggle-source').classList.toggle('active', cInput.classList.contains('show-source'));
         });
 
+        $('btn-auto-threshold').addEventListener('click', autoThreshold);
         $('btn-export-png').addEventListener('click', exportPNG);
         $('btn-export-svg').addEventListener('click', exportSVG);
         $('btn-generate').addEventListener('click', function () {
@@ -639,7 +727,7 @@
         function reloadIfNeeded() {
             updatePixelReadout();
             if (imageLoaded) {
-                loadImage($('source-img').src);
+                setupCanvas();
             }
         }
 
