@@ -167,6 +167,51 @@ const LineRender = (function () {
     }
 
     /**
+     * Sort paths within each group using greedy nearest-neighbor to minimize
+     * pen travel distance (important for pen plotters).
+     */
+    function sortPathsForPlotter(groups) {
+        groups.forEach(function (group) {
+            var paths = group.removeChildren();
+            if (paths.length < 2) {
+                group.addChildren(paths);
+                return;
+            }
+
+            // Start from the path nearest to origin
+            var current = 0;
+            var minDist = Infinity;
+            var origin = new paper.Point(0, 0);
+            for (var i = 0; i < paths.length; i++) {
+                var d = origin.getDistance(paths[i].firstSegment.point);
+                if (d < minDist) { minDist = d; current = i; }
+            }
+
+            var sorted = [paths[current]];
+            var visited = new Array(paths.length);
+            visited[current] = true;
+
+            for (var s = 1; s < paths.length; s++) {
+                var lastPt = sorted[sorted.length - 1].lastSegment.point;
+                var bestIdx = -1;
+                var bestDist = Infinity;
+                for (var j = 0; j < paths.length; j++) {
+                    if (visited[j]) continue;
+                    var dist = lastPt.getDistance(paths[j].firstSegment.point);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestIdx = j;
+                    }
+                }
+                visited[bestIdx] = true;
+                sorted.push(paths[bestIdx]);
+            }
+
+            group.addChildren(sorted);
+        });
+    }
+
+    /**
      * Render contours to Paper.js paths grouped by threshold level.
      * Returns { groups[], totalPaths, totalPoints, renderTimeMs }
      */
@@ -233,6 +278,9 @@ const LineRender = (function () {
         });
 
         if (src) src.delete();
+
+        // Sort paths within each group to minimize pen travel distance
+        sortPathsForPlotter(allGroups);
 
         paper.view.draw();
 

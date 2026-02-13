@@ -73,15 +73,16 @@
 
             var dim = getCanvasDimensions();
 
-            // Draw to input canvas
+            // Draw to input canvas (contain-fit: full image visible, white fill for empty area)
             const cInput = $('c-input');
             cInput.width = dim.widthPx;
             cInput.height = dim.heightPx;
             const ctx = cInput.getContext('2d');
-            const scale = Math.max(dim.widthPx / img.width, dim.heightPx / img.height);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, dim.widthPx, dim.heightPx);
+            const scale = Math.min(dim.widthPx / img.width, dim.heightPx / img.height);
             const x = (dim.widthPx - img.width * scale) / 2;
             const y = (dim.heightPx - img.height * scale) / 2;
-            ctx.clearRect(0, 0, dim.widthPx, dim.heightPx);
             ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
 
             // Setup output canvas
@@ -89,11 +90,16 @@
             cOutput.width = dim.widthPx;
             cOutput.height = dim.heightPx;
 
+            // Setup Paper.js on the output canvas (before fitCanvasToView so
+            // Paper.js can set CSS dimensions, then we sync c-input to match)
+            paper.setup(cOutput);
+
+            // Sync c-input CSS size with c-output (Paper.js may adjust for HiDPI)
+            cInput.style.width = cOutput.style.width || (dim.widthPx + 'px');
+            cInput.style.height = cOutput.style.height || (dim.heightPx + 'px');
+
             // Fit canvas in view
             fitCanvasToView();
-
-            // Setup Paper.js on the output canvas
-            paper.setup(cOutput);
 
             // Initialize editor tools
             Editor.init({
@@ -115,12 +121,13 @@
     function fitCanvasToView() {
         const wrapper = $('canvas-wrapper');
         const area = $('canvas-area');
-        const cOutput = $('c-output');
-        if (!cOutput || !area) return;
+        if (!wrapper || !area) return;
 
+        // Use our known dimensions (Paper.js may modify canvas.width for HiDPI)
+        var dim = getCanvasDimensions();
         const areaW = area.clientWidth - 40;
         const areaH = area.clientHeight - 40;
-        const scale = Math.min(areaW / cOutput.width, areaH / cOutput.height, 1);
+        const scale = Math.min(areaW / dim.widthPx, areaH / dim.heightPx, 1);
         wrapper.style.transform = 'scale(' + scale + ')';
         wrapper.style.transformOrigin = 'center center';
     }
@@ -156,6 +163,11 @@
         setProgress(5, 'Processing...');
 
         Editor.clearHistory();
+
+        // Reset view to default state so paths aren't offset by previous pan/zoom
+        var dim = getCanvasDimensions();
+        if (Editor.initialized) Editor.zoomTo(1);
+        paper.view.center = new paper.Point(dim.widthPx / 2, dim.heightPx / 2);
 
         // Collect options from UI
         const options = {
@@ -397,6 +409,12 @@
         $('btn-zoom-in').addEventListener('click', function () { if (Editor.initialized) Editor.zoom(1.25); });
         $('btn-zoom-out').addEventListener('click', function () { if (Editor.initialized) Editor.zoom(0.8); });
         $('btn-zoom-fit').addEventListener('click', function () { if (Editor.initialized) Editor.fitToView(); });
+
+        $('btn-toggle-source').addEventListener('click', function () {
+            var cInput = $('c-input');
+            cInput.classList.toggle('show-source');
+            $('btn-toggle-source').classList.toggle('active', cInput.classList.contains('show-source'));
+        });
 
         $('btn-export-png').addEventListener('click', exportPNG);
         $('btn-export-svg').addEventListener('click', exportSVG);

@@ -301,8 +301,22 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
     box-shadow: 0 4px 32px rgba(0,0,0,0.4);
     transition: transform 0.1s ease;
 }
+#c-input {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 0;
+}
+#c-input.show-source {
+    opacity: 0.3;
+}
 #c-output {
     display: block;
+    position: relative;
+    z-index: 1;
     background: #fff;
     cursor: crosshair;
 }

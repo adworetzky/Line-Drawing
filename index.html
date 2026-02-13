@@ -65,6 +65,9 @@
             </div>
         </div>
         <div class="toolbar-right">
+            <button id="btn-toggle-source" class="tool-btn" title="Toggle source image overlay">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </button>
             <button id="btn-export-png" class="export-btn">Export PNG</button>
             <button id="btn-export-svg" class="export-btn primary">Export SVG</button>
         </div>
@@ -274,7 +277,7 @@
         <!-- Main canvas area -->
         <main id="canvas-area">
             <div id="canvas-wrapper">
-                <canvas id="c-input" style="display:none;"></canvas>
+                <canvas id="c-input"></canvas>
                 <canvas id="c-output"></canvas>
                 <canvas id="c-gpu" style="display:none;"></canvas>
             </div>
