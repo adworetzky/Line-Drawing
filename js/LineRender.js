@@ -427,8 +427,68 @@ const LineRender = (function () {
         };
     }
 
+    /**
+     * Estimate pen plotter time from sorted path groups.
+     * Walks the sorted paths computing drawing distance (pen down),
+     * travel distance (pen up), and pen lift count, then converts
+     * to physical units and applies typical plotter speeds.
+     */
+    function estimatePlotTime(groups, dpi) {
+        var drawSpeedMmS   = 40;   // pen-down drawing speed (mm/s)
+        var travelSpeedMmS = 150;  // pen-up travel speed (mm/s)
+        var penLiftTimeSec = 0.2;  // time per pen lift+drop cycle
+        var mmPerPx = 25.4 / dpi;
+
+        var drawPx   = 0;
+        var travelPx = 0;
+        var penLifts = 0;
+        var lastPt   = null;
+
+        groups.forEach(function (group) {
+            var children = group.children;
+            for (var i = 0; i < children.length; i++) {
+                var path = children[i];
+                if (!path.segments || path.segments.length < 2) continue;
+
+                // Pen-up travel from previous path end → this path start
+                if (lastPt) {
+                    travelPx += lastPt.getDistance(path.firstSegment.point);
+                    penLifts++;
+                }
+
+                drawPx += path.length;
+                lastPt = path.lastSegment.point;
+            }
+        });
+
+        var drawMm    = drawPx * mmPerPx;
+        var travelMm  = travelPx * mmPerPx;
+        var totalSec  = drawMm / drawSpeedMmS
+                      + travelMm / travelSpeedMmS
+                      + penLifts * penLiftTimeSec;
+
+        return {
+            drawDistM:    Math.round(drawMm / 100) / 10,   // metres, 1 decimal
+            travelDistM:  Math.round(travelMm / 100) / 10,
+            penLifts:     penLifts,
+            totalSeconds: Math.round(totalSec),
+            formatted:    formatPlotTime(Math.round(totalSec))
+        };
+    }
+
+    function formatPlotTime(sec) {
+        if (sec < 60) return sec + 's';
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        if (m < 60) return m + 'm ' + (s > 0 ? s + 's' : '');
+        var h = Math.floor(m / 60);
+        m = m % 60;
+        return h + 'h ' + (m > 0 ? m + 'm' : '');
+    }
+
     return {
         render,
+        estimatePlotTime,
         simplifyPoints,
         buildThresholds,
         extractContours,

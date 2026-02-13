@@ -219,6 +219,13 @@
         $('stat-points').textContent = result.totalPoints;
         $('stat-time').textContent = result.renderTimeMs + 'ms';
         $('stat-gpu').textContent = (readOption('opt-gpu') && GPUProcessor.available) ? 'On' : 'Off';
+
+        var dim = getCanvasDimensions();
+        var est = LineRender.estimatePlotTime(result.groups, dim.dpi);
+        $('stat-plot-time').textContent = est.formatted;
+        $('stat-draw-dist').textContent = est.drawDistM + ' m';
+        $('stat-travel-dist').textContent = est.travelDistM + ' m';
+        $('stat-pen-lifts').textContent = est.penLifts;
     }
 
     function updateLayers(result) {
