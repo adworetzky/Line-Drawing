@@ -5,6 +5,9 @@
 const LineRender = (function () {
     'use strict';
 
+    // Reusable temp canvas for GPU contour extraction (avoids DOM allocation per level)
+    var _gpuTempCanvas = null;
+
     /**
      * Visvalingam-Whyatt simplification: removes points that contribute
      * the least area, preserving shape fidelity better than RDP for smooth curves.
@@ -121,17 +124,63 @@ const LineRender = (function () {
     }
 
     /**
+     * Extract contours from a pre-converted grayscale Mat.
+     * Avoids redundant RGBA→gray conversion when processing multiple threshold levels.
+     */
+    function extractContoursFromGray(grayMat, threshValue, minPoints, edgeMethod) {
+        var dst = grayMat.clone();
+
+        if (edgeMethod === 'canny') {
+            cv.Canny(dst, dst, threshValue * 0.5, threshValue, 3, false);
+        } else if (edgeMethod === 'adaptive') {
+            cv.adaptiveThreshold(
+                dst,
+                dst,
+                255,
+                cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv.THRESH_BINARY,
+                11,
+                threshValue / 25
+            );
+        } else {
+            cv.threshold(dst, dst, threshValue, 255, cv.THRESH_BINARY);
+        }
+
+        var contours = new cv.MatVector();
+        var hierarchy = new cv.Mat();
+        cv.findContours(dst, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+
+        var result = [];
+        for (var j = 0; j < contours.size(); j++) {
+            var ci = contours.get(j);
+            if (ci.data32S.length / 2 < minPoints) continue;
+            var pts = [];
+            for (var k = 0; k < ci.data32S.length; k += 2) {
+                pts.push([ci.data32S[k], ci.data32S[k + 1]]);
+            }
+            result.push(pts);
+        }
+
+        dst.delete();
+        contours.delete();
+        hierarchy.delete();
+        return result;
+    }
+
+    /**
      * Extract contours using GPU-thresholded ImageData.
      * The thresholded image is written to a temp canvas for OpenCV to read.
      */
     function extractContoursGPU(imageData, minPoints) {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = imageData.width;
-        tempCanvas.height = imageData.height;
-        const ctx = tempCanvas.getContext('2d');
+        if (!_gpuTempCanvas) {
+            _gpuTempCanvas = document.createElement('canvas');
+        }
+        _gpuTempCanvas.width = imageData.width;
+        _gpuTempCanvas.height = imageData.height;
+        var ctx = _gpuTempCanvas.getContext('2d');
         ctx.putImageData(imageData, 0, 0);
 
-        let src = cv.imread(tempCanvas);
+        let src = cv.imread(_gpuTempCanvas);
         let gray = new cv.Mat();
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
 
@@ -191,12 +240,10 @@ const LineRender = (function () {
         var pixels = imageData.data;
         var diag = Math.sqrt(w * w + h * h);
 
-        function brightness(x, y) {
-            var ix = Math.round(x);
-            var iy = Math.round(y);
-            if (ix < 0 || ix >= w || iy < 0 || iy >= h) return 255;
-            var idx = (iy * w + ix) * 4;
-            return pixels[idx] * 0.299 + pixels[idx + 1] * 0.587 + pixels[idx + 2] * 0.114;
+        // Precompute grayscale lookup (integer math, single array vs per-pixel function)
+        var grayData = new Uint8Array(w * h);
+        for (var gi = 0, gj = 0; gi < pixels.length; gi += 4, gj++) {
+            grayData[gj] = (pixels[gi] * 77 + pixels[gi + 1] * 150 + pixels[gi + 2] * 29) >> 8;
         }
 
         // Build pass list — each pass gets a progressively tighter threshold
@@ -255,7 +302,7 @@ const LineRender = (function () {
                         continue;
                     }
 
-                    var b = brightness(px, py);
+                    var b = grayData[(py | 0) * w + (px | 0)];
 
                     if (b < pass.thresh) {
                         seg.push([px, py]);
@@ -283,12 +330,12 @@ const LineRender = (function () {
                 return;
             }
 
-            // Start from the path nearest to origin
+            // Start from the path nearest to origin (squared distance avoids sqrt)
             var current = 0;
             var minDist = Infinity;
-            var origin = new paper.Point(0, 0);
             for (var i = 0; i < paths.length; i++) {
-                var d = origin.getDistance(paths[i].firstSegment.point);
+                var p = paths[i].firstSegment.point;
+                var d = p.x * p.x + p.y * p.y;
                 if (d < minDist) {
                     minDist = d;
                     current = i;
@@ -305,7 +352,10 @@ const LineRender = (function () {
                 var bestDist = Infinity;
                 for (var j = 0; j < paths.length; j++) {
                     if (visited[j]) continue;
-                    var dist = lastPt.getDistance(paths[j].firstSegment.point);
+                    var fp = paths[j].firstSegment.point;
+                    var dx = lastPt.x - fp.x;
+                    var dy = lastPt.y - fp.y;
+                    var dist = dx * dx + dy * dy;
                     if (dist < bestDist) {
                         bestDist = dist;
                         bestIdx = j;
@@ -321,129 +371,150 @@ const LineRender = (function () {
 
     /**
      * Render contours to Paper.js paths grouped by threshold level.
-     * Returns { groups[], totalPaths, totalPoints, renderTimeMs }
+     * Returns a Promise that resolves with { groups[], totalPaths, totalPoints, renderTimeMs }.
+     * Yields to the event loop between threshold levels to prevent UI freeze.
      */
     function render(options) {
-        const {
-            inputCanvas,
-            levels,
-            threshLow,
-            threshHigh,
-            minPoints,
-            edgeMethod,
-            simplifyMethod,
-            tolerance,
-            smoothType,
-            tension,
-            strokeWidth,
-            strokeColor,
-            useGPU,
-            hatchEnabled,
-            hatchType,
-            hatchSpacing,
-            hatchAngle,
-            hatchBrightness,
-            onProgress
-        } = options;
+        var inputCanvas = options.inputCanvas;
+        var levels = options.levels;
+        var threshLow = options.threshLow;
+        var threshHigh = options.threshHigh;
+        var minPoints = options.minPoints;
+        var edgeMethod = options.edgeMethod;
+        var simplifyMethod = options.simplifyMethod;
+        var tolerance = options.tolerance;
+        var smoothType = options.smoothType;
+        var tension = options.tension;
+        var strokeWidth = options.strokeWidth;
+        var strokeColor = options.strokeColor;
+        var useGPU = options.useGPU;
+        var hatchEnabled = options.hatchEnabled;
+        var hatchType = options.hatchType;
+        var hatchSpacing = options.hatchSpacing;
+        var hatchAngle = options.hatchAngle;
+        var hatchBrightness = options.hatchBrightness;
+        var onProgress = options.onProgress;
 
-        const t0 = performance.now();
-        paper.project.clear();
+        return new Promise(function (resolve) {
+            var t0 = performance.now();
+            paper.project.clear();
 
-        const thresholds = buildThresholds(threshLow, threshHigh, levels);
-        const allGroups = [];
-        let totalPaths = 0;
-        let totalPoints = 0;
+            var thresholds = buildThresholds(threshLow, threshHigh, levels);
+            var allGroups = [];
+            var totalPaths = 0;
+            var totalPoints = 0;
 
-        let src = null;
-        if (!useGPU || !GPUProcessor.available) {
-            src = cv.imread(inputCanvas);
-        }
-
-        thresholds.forEach((threshVal, idx) => {
-            if (onProgress) {
-                onProgress(Math.round(((idx + 1) / thresholds.length) * 90));
+            // Convert to grayscale ONCE for CPU path (avoids redundant conversion per level)
+            var gray = null;
+            if (!useGPU || !GPUProcessor.available) {
+                var src = cv.imread(inputCanvas);
+                gray = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                src.delete();
             }
 
-            let rawContours;
-            if (useGPU && GPUProcessor.available) {
-                const imageData = GPUProcessor.threshold(inputCanvas, threshVal);
-                rawContours = extractContoursGPU(imageData, minPoints);
-            } else {
-                rawContours = extractContours(src, threshVal, minPoints, edgeMethod);
-            }
-
-            const simplified = rawContours.map((pts) =>
-                simplifyPoints(pts, simplifyMethod, tolerance)
-            );
-
-            const group = new paper.Group();
-            group.name = 'Level ' + (idx + 1) + ' (T:' + Math.round(threshVal) + ')';
-
-            simplified.forEach((pts) => {
-                if (pts.length < 2) return;
-                const path = new paper.Path(pts);
-                path.closed = true;
-                if (smoothType !== 'none') {
-                    path.smooth({ type: smoothType, factor: tension });
+            function processLevel(idx) {
+                if (idx >= thresholds.length) {
+                    if (gray) gray.delete();
+                    finalize();
+                    return;
                 }
-                group.addChild(path);
-                totalPaths++;
-                totalPoints += pts.length;
-            });
 
-            group.strokeWidth = strokeWidth;
-            group.strokeScaling = false;
-            group.miterLimit = 5;
-            group.strokeColor = strokeColor;
-            allGroups.push(group);
+                var threshVal = thresholds[idx];
+                if (onProgress) {
+                    onProgress(Math.round(((idx + 1) / thresholds.length) * 80));
+                }
+
+                var rawContours;
+                if (useGPU && GPUProcessor.available) {
+                    var imageData = GPUProcessor.threshold(inputCanvas, threshVal);
+                    rawContours = extractContoursGPU(imageData, minPoints);
+                } else {
+                    rawContours = extractContoursFromGray(gray, threshVal, minPoints, edgeMethod);
+                }
+
+                var simplified = rawContours.map(function (pts) {
+                    return simplifyPoints(pts, simplifyMethod, tolerance);
+                });
+
+                var group = new paper.Group();
+                group.name = 'Level ' + (idx + 1) + ' (T:' + Math.round(threshVal) + ')';
+
+                simplified.forEach(function (pts) {
+                    if (pts.length < 2) return;
+                    var path = new paper.Path(pts);
+                    path.closed = true;
+                    if (smoothType !== 'none') {
+                        path.smooth({ type: smoothType, factor: tension });
+                    }
+                    group.addChild(path);
+                    totalPaths++;
+                    totalPoints += pts.length;
+                });
+
+                group.strokeWidth = strokeWidth;
+                group.strokeScaling = false;
+                group.miterLimit = 5;
+                group.strokeColor = strokeColor;
+                allGroups.push(group);
+
+                // Yield to event loop between levels to keep UI responsive
+                setTimeout(function () {
+                    processLevel(idx + 1);
+                }, 0);
+            }
+
+            function finalize() {
+                // Generate hatching if enabled
+                if (hatchEnabled) {
+                    if (onProgress) onProgress(85);
+
+                    var hatchSegs = generateHatching(inputCanvas, {
+                        hatchType: hatchType,
+                        hatchSpacing: hatchSpacing,
+                        hatchAngle: hatchAngle,
+                        hatchBrightness: hatchBrightness
+                    });
+
+                    var hatchGroup = new paper.Group();
+                    hatchGroup.name = 'Hatching (' + (hatchType || 'cross') + ')';
+
+                    hatchSegs.forEach(function (seg) {
+                        var simplifiedSeg = simplifyPoints(seg, 'rdp', 1);
+                        if (simplifiedSeg.length < 2) return;
+                        var path = new paper.Path(simplifiedSeg);
+                        path.closed = false;
+                        hatchGroup.addChild(path);
+                        totalPaths++;
+                        totalPoints += simplifiedSeg.length;
+                    });
+
+                    hatchGroup.strokeWidth = strokeWidth;
+                    hatchGroup.strokeScaling = false;
+                    hatchGroup.miterLimit = 5;
+                    hatchGroup.strokeColor = strokeColor;
+                    allGroups.push(hatchGroup);
+                }
+
+                if (onProgress) onProgress(92);
+
+                // Sort paths within each group to minimize pen travel distance
+                sortPathsForPlotter(allGroups);
+
+                paper.view.draw();
+
+                if (onProgress) onProgress(100);
+
+                resolve({
+                    groups: allGroups,
+                    totalPaths: totalPaths,
+                    totalPoints: totalPoints,
+                    renderTimeMs: Math.round(performance.now() - t0)
+                });
+            }
+
+            processLevel(0);
         });
-
-        if (src) src.delete();
-
-        // Generate hatching if enabled
-        if (hatchEnabled) {
-            if (onProgress) onProgress(92);
-
-            var hatchSegs = generateHatching(inputCanvas, {
-                hatchType: hatchType,
-                hatchSpacing: hatchSpacing,
-                hatchAngle: hatchAngle,
-                hatchBrightness: hatchBrightness
-            });
-
-            var hatchGroup = new paper.Group();
-            hatchGroup.name = 'Hatching (' + (hatchType || 'cross') + ')';
-
-            hatchSegs.forEach(function (seg) {
-                var simplified = simplifyPoints(seg, 'rdp', 1);
-                if (simplified.length < 2) return;
-                var path = new paper.Path(simplified);
-                path.closed = false;
-                hatchGroup.addChild(path);
-                totalPaths++;
-                totalPoints += simplified.length;
-            });
-
-            hatchGroup.strokeWidth = strokeWidth;
-            hatchGroup.strokeScaling = false;
-            hatchGroup.miterLimit = 5;
-            hatchGroup.strokeColor = strokeColor;
-            allGroups.push(hatchGroup);
-        }
-
-        // Sort paths within each group to minimize pen travel distance
-        sortPathsForPlotter(allGroups);
-
-        paper.view.draw();
-
-        if (onProgress) onProgress(100);
-
-        return {
-            groups: allGroups,
-            totalPaths,
-            totalPoints,
-            renderTimeMs: Math.round(performance.now() - t0)
-        };
     }
 
     /**

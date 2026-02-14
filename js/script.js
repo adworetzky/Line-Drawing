@@ -281,32 +281,32 @@
             }
         };
 
-        // Use requestAnimationFrame to let the UI update before heavy work
-        requestAnimationFrame(function () {
-            setTimeout(function () {
-                try {
-                    lastRenderResult = LineRender.render(options);
-                    var weightVar = readOption('opt-weight-var');
-                    if (weightVar > 0) {
-                        applyWeightVariation(
-                            lastRenderResult,
-                            $('c-input'),
-                            readOption('opt-stroke-width'),
-                            weightVar
-                        );
-                    }
-                    updateStats(lastRenderResult);
-                    updateLayers(lastRenderResult);
-                    Editor.saveSnapshot();
-                } catch (err) {
-                    console.error('Render error:', err);
-                    setProgress(0);
+        // render() is async — yields between threshold levels to keep UI responsive
+        LineRender.render(options)
+            .then(function (result) {
+                lastRenderResult = result;
+                var weightVar = readOption('opt-weight-var');
+                if (weightVar > 0) {
+                    applyWeightVariation(
+                        result,
+                        $('c-input'),
+                        readOption('opt-stroke-width'),
+                        weightVar
+                    );
                 }
+                updateStats(result);
+                updateLayers(result);
+                Editor.saveSnapshot();
                 processing = false;
                 $('btn-generate').disabled = false;
                 setProgress(0);
-            }, 50);
-        });
+            })
+            .catch(function (err) {
+                console.error('Render error:', err);
+                processing = false;
+                $('btn-generate').disabled = false;
+                setProgress(0);
+            });
     }
 
     // ── Stats + Layers ──
@@ -545,10 +545,10 @@
         var pixels = imageData.data;
 
         // Build brightness histogram, skip near-white background/margins
-        var histogram = new Array(256).fill(0);
+        var histogram = new Uint32Array(256);
         var contentPixels = 0;
         for (var i = 0; i < pixels.length; i += 4) {
-            var lum = Math.round(pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
+            var lum = (pixels[i] * 77 + pixels[i + 1] * 150 + pixels[i + 2] * 29) >> 8;
             if (lum < 248) {
                 histogram[lum]++;
                 contentPixels++;
