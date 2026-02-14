@@ -146,17 +146,21 @@ const GPUProcessor = (function () {
         // Full-screen quad
         const posBuf = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-            -1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1
-        ]), gl.STATIC_DRAW);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+            gl.STATIC_DRAW
+        );
         gl.enableVertexAttribArray(posLoc);
         gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
         const texBuf = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-            0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0
-        ]), gl.STATIC_DRAW);
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array([0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0]),
+            gl.STATIC_DRAW
+        );
         gl.enableVertexAttribArray(texLoc);
         gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
     }
@@ -199,8 +203,9 @@ const GPUProcessor = (function () {
                 document.body.appendChild(canvas);
             }
             try {
-                gl = canvas.getContext('webgl', { preserveDrawingBuffer: true })
-                    || canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+                gl =
+                    canvas.getContext('webgl', { preserveDrawingBuffer: true }) ||
+                    canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
             } catch (e) {
                 gl = null;
             }
@@ -223,7 +228,9 @@ const GPUProcessor = (function () {
             return _available;
         },
 
-        get available() { return _available; },
+        get available() {
+            return _available;
+        },
 
         /**
          * Apply threshold on the GPU.
@@ -325,7 +332,11 @@ const GPUProcessor = (function () {
                 gl.useProgram(programs.blurH);
                 setupGeometry(programs.blurH);
                 gl.bindTexture(gl.TEXTURE_2D, inputTex);
-                gl.uniform2f(gl.getUniformLocation(programs.blurH, 'u_texelSize'), 1.0 / w, 1.0 / h);
+                gl.uniform2f(
+                    gl.getUniformLocation(programs.blurH, 'u_texelSize'),
+                    1.0 / w,
+                    1.0 / h
+                );
                 gl.bindFramebuffer(gl.FRAMEBUFFER, fb1.framebuffer);
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -333,7 +344,11 @@ const GPUProcessor = (function () {
                 gl.useProgram(programs.blurV);
                 setupGeometry(programs.blurV);
                 gl.bindTexture(gl.TEXTURE_2D, fb1.texture);
-                gl.uniform2f(gl.getUniformLocation(programs.blurV, 'u_texelSize'), 1.0 / w, 1.0 / h);
+                gl.uniform2f(
+                    gl.getUniformLocation(programs.blurV, 'u_texelSize'),
+                    1.0 / w,
+                    1.0 / h
+                );
                 if (i < passes - 1) {
                     gl.bindFramebuffer(gl.FRAMEBUFFER, fb2.framebuffer);
                 } else {

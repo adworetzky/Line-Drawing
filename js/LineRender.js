@@ -10,10 +10,7 @@ const LineRender = (function () {
      * the least area, preserving shape fidelity better than RDP for smooth curves.
      */
     function triangleArea(p1, p2, p3) {
-        return Math.abs(
-            (p2[0] - p1[0]) * (p3[1] - p1[1]) -
-            (p3[0] - p1[0]) * (p2[1] - p1[1])
-        ) / 2;
+        return Math.abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1])) / 2;
     }
 
     function simplifyVisvalingam(points, tolerance) {
@@ -38,7 +35,7 @@ const LineRender = (function () {
             if (minVal >= minArea) break;
             pts.splice(minIdx, 1);
         }
-        return pts.map(p => [p.x, p.y]);
+        return pts.map((p) => [p.x, p.y]);
     }
 
     /**
@@ -69,13 +66,13 @@ const LineRender = (function () {
     function simplifyPoints(points, method, tolerance) {
         if (method === 'none' || tolerance <= 0) return points;
         switch (method) {
-            case 'visvalingam': return simplifyVisvalingam(points, tolerance);
-            case 'radial': return simplifyRadial(points, tolerance);
+            case 'visvalingam':
+                return simplifyVisvalingam(points, tolerance);
+            case 'radial':
+                return simplifyRadial(points, tolerance);
             case 'rdp':
             default:
-                return (typeof simplify === 'function')
-                    ? simplify(points, tolerance)
-                    : points;
+                return typeof simplify === 'function' ? simplify(points, tolerance) : points;
         }
     }
 
@@ -89,9 +86,15 @@ const LineRender = (function () {
         if (edgeMethod === 'canny') {
             cv.Canny(dst, dst, threshValue * 0.5, threshValue, 3, false);
         } else if (edgeMethod === 'adaptive') {
-            cv.adaptiveThreshold(dst, dst, 255,
-                cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY,
-                11, threshValue / 25);
+            cv.adaptiveThreshold(
+                dst,
+                dst,
+                255,
+                cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv.THRESH_BINARY,
+                11,
+                threshValue / 25
+            );
         } else {
             cv.threshold(dst, dst, threshValue, 255, cv.THRESH_BINARY);
         }
@@ -175,11 +178,11 @@ const LineRender = (function () {
      * hatch layers — building up natural tonal density.
      */
     function generateHatching(inputCanvas, opts) {
-        var spacing  = opts.hatchSpacing    || 8;
-        var baseAngle = (opts.hatchAngle    || 45) * Math.PI / 180;
-        var type     = opts.hatchType       || 'cross';
+        var spacing = opts.hatchSpacing || 8;
+        var baseAngle = ((opts.hatchAngle || 45) * Math.PI) / 180;
+        var type = opts.hatchType || 'cross';
         var maxBright = opts.hatchBrightness || 170;
-        var stepSize  = 2; // sample every 2 px along each scan line
+        var stepSize = 2; // sample every 2 px along each scan line
 
         var w = inputCanvas.width;
         var h = inputCanvas.height;
@@ -202,14 +205,15 @@ const LineRender = (function () {
             passes = [{ angle: baseAngle, thresh: maxBright }];
         } else if (type === 'cross') {
             passes = [
-                { angle: baseAngle,                   thresh: maxBright },
-                { angle: baseAngle + Math.PI / 2,     thresh: maxBright * 0.6 }
+                { angle: baseAngle, thresh: maxBright },
+                { angle: baseAngle + Math.PI / 2, thresh: maxBright * 0.6 }
             ];
-        } else { // triple
+        } else {
+            // triple
             passes = [
-                { angle: baseAngle,                       thresh: maxBright },
-                { angle: baseAngle + Math.PI / 3,         thresh: maxBright * 0.55 },
-                { angle: baseAngle + 2 * Math.PI / 3,     thresh: maxBright * 0.3 }
+                { angle: baseAngle, thresh: maxBright },
+                { angle: baseAngle + Math.PI / 3, thresh: maxBright * 0.55 },
+                { angle: baseAngle + (2 * Math.PI) / 3, thresh: maxBright * 0.3 }
             ];
         }
 
@@ -226,10 +230,10 @@ const LineRender = (function () {
             for (var i = -numLines; i <= numLines; i++) {
                 var off = i * spacing;
                 // Perpendicular offset from center, line runs along (cosA, sinA)
-                var lx0 = cx + (-sinA) * off - cosA * diag;
-                var ly0 = cy +  cosA  * off - sinA * diag;
-                var lx1 = cx + (-sinA) * off + cosA * diag;
-                var ly1 = cy +  cosA  * off + sinA * diag;
+                var lx0 = cx + -sinA * off - cosA * diag;
+                var ly0 = cy + cosA * off - sinA * diag;
+                var lx1 = cx + -sinA * off + cosA * diag;
+                var ly1 = cy + cosA * off + sinA * diag;
 
                 var dx = lx1 - lx0;
                 var dy = ly1 - ly0;
@@ -285,7 +289,10 @@ const LineRender = (function () {
             var origin = new paper.Point(0, 0);
             for (var i = 0; i < paths.length; i++) {
                 var d = origin.getDistance(paths[i].firstSegment.point);
-                if (d < minDist) { minDist = d; current = i; }
+                if (d < minDist) {
+                    minDist = d;
+                    current = i;
+                }
             }
 
             var sorted = [paths[current]];
@@ -319,13 +326,23 @@ const LineRender = (function () {
     function render(options) {
         const {
             inputCanvas,
-            levels, threshLow, threshHigh,
-            minPoints, edgeMethod,
-            simplifyMethod, tolerance,
-            smoothType, tension,
-            strokeWidth, strokeColor,
+            levels,
+            threshLow,
+            threshHigh,
+            minPoints,
+            edgeMethod,
+            simplifyMethod,
+            tolerance,
+            smoothType,
+            tension,
+            strokeWidth,
+            strokeColor,
             useGPU,
-            hatchEnabled, hatchType, hatchSpacing, hatchAngle, hatchBrightness,
+            hatchEnabled,
+            hatchType,
+            hatchSpacing,
+            hatchAngle,
+            hatchBrightness,
             onProgress
         } = options;
 
@@ -355,12 +372,14 @@ const LineRender = (function () {
                 rawContours = extractContours(src, threshVal, minPoints, edgeMethod);
             }
 
-            const simplified = rawContours.map(pts => simplifyPoints(pts, simplifyMethod, tolerance));
+            const simplified = rawContours.map((pts) =>
+                simplifyPoints(pts, simplifyMethod, tolerance)
+            );
 
             const group = new paper.Group();
             group.name = 'Level ' + (idx + 1) + ' (T:' + Math.round(threshVal) + ')';
 
-            simplified.forEach(pts => {
+            simplified.forEach((pts) => {
                 if (pts.length < 2) return;
                 const path = new paper.Path(pts);
                 path.closed = true;
@@ -434,15 +453,15 @@ const LineRender = (function () {
      * to physical units and applies typical plotter speeds.
      */
     function estimatePlotTime(groups, dpi) {
-        var drawSpeedMmS   = 40;   // pen-down drawing speed (mm/s)
-        var travelSpeedMmS = 150;  // pen-up travel speed (mm/s)
-        var penLiftTimeSec = 0.2;  // time per pen lift+drop cycle
+        var drawSpeedMmS = 40; // pen-down drawing speed (mm/s)
+        var travelSpeedMmS = 150; // pen-up travel speed (mm/s)
+        var penLiftTimeSec = 0.2; // time per pen lift+drop cycle
         var mmPerPx = 25.4 / dpi;
 
-        var drawPx   = 0;
+        var drawPx = 0;
         var travelPx = 0;
         var penLifts = 0;
-        var lastPt   = null;
+        var lastPt = null;
 
         groups.forEach(function (group) {
             var children = group.children;
@@ -461,18 +480,17 @@ const LineRender = (function () {
             }
         });
 
-        var drawMm    = drawPx * mmPerPx;
-        var travelMm  = travelPx * mmPerPx;
-        var totalSec  = drawMm / drawSpeedMmS
-                      + travelMm / travelSpeedMmS
-                      + penLifts * penLiftTimeSec;
+        var drawMm = drawPx * mmPerPx;
+        var travelMm = travelPx * mmPerPx;
+        var totalSec =
+            drawMm / drawSpeedMmS + travelMm / travelSpeedMmS + penLifts * penLiftTimeSec;
 
         return {
-            drawDistM:    Math.round(drawMm / 100) / 10,   // metres, 1 decimal
-            travelDistM:  Math.round(travelMm / 100) / 10,
-            penLifts:     penLifts,
+            drawDistM: Math.round(drawMm / 100) / 10, // metres, 1 decimal
+            travelDistM: Math.round(travelMm / 100) / 10,
+            penLifts: penLifts,
             totalSeconds: Math.round(totalSec),
-            formatted:    formatPlotTime(Math.round(totalSec))
+            formatted: formatPlotTime(Math.round(totalSec))
         };
     }
 

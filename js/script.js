@@ -14,41 +14,73 @@
     // ── Presets ──
     const PRESETS = {
         sketch: {
-            'opt-levels': 4, 'opt-thresh-low': 30, 'opt-thresh-high': 160,
-            'opt-simplify-method': 'rdp', 'opt-tolerance': 3.5,
-            'opt-smooth-type': 'catmull-rom', 'opt-tension': -0.5,
-            'opt-stroke-width': 0.7, 'opt-edge-method': 'threshold',
-            'opt-hatch-enable': false, 'opt-weight-var': 0.4
+            'opt-levels': 4,
+            'opt-thresh-low': 30,
+            'opt-thresh-high': 160,
+            'opt-simplify-method': 'rdp',
+            'opt-tolerance': 3.5,
+            'opt-smooth-type': 'catmull-rom',
+            'opt-tension': -0.5,
+            'opt-stroke-width': 0.7,
+            'opt-edge-method': 'threshold',
+            'opt-hatch-enable': false,
+            'opt-weight-var': 0.4
         },
         technical: {
-            'opt-levels': 10, 'opt-thresh-low': 15, 'opt-thresh-high': 200,
-            'opt-simplify-method': 'rdp', 'opt-tolerance': 1,
-            'opt-smooth-type': 'none', 'opt-tension': 0,
-            'opt-stroke-width': 0.5, 'opt-edge-method': 'canny',
-            'opt-hatch-enable': false, 'opt-weight-var': 0
+            'opt-levels': 10,
+            'opt-thresh-low': 15,
+            'opt-thresh-high': 200,
+            'opt-simplify-method': 'rdp',
+            'opt-tolerance': 1,
+            'opt-smooth-type': 'none',
+            'opt-tension': 0,
+            'opt-stroke-width': 0.5,
+            'opt-edge-method': 'canny',
+            'opt-hatch-enable': false,
+            'opt-weight-var': 0
         },
         hatched: {
-            'opt-levels': 3, 'opt-thresh-low': 30, 'opt-thresh-high': 150,
-            'opt-simplify-method': 'rdp', 'opt-tolerance': 2,
-            'opt-smooth-type': 'catmull-rom', 'opt-tension': -0.8,
-            'opt-stroke-width': 0.6, 'opt-edge-method': 'threshold',
-            'opt-hatch-enable': true, 'opt-hatch-type': 'cross',
-            'opt-hatch-spacing': 6, 'opt-hatch-angle': 45,
-            'opt-hatch-brightness': 170, 'opt-weight-var': 0
+            'opt-levels': 3,
+            'opt-thresh-low': 30,
+            'opt-thresh-high': 150,
+            'opt-simplify-method': 'rdp',
+            'opt-tolerance': 2,
+            'opt-smooth-type': 'catmull-rom',
+            'opt-tension': -0.8,
+            'opt-stroke-width': 0.6,
+            'opt-edge-method': 'threshold',
+            'opt-hatch-enable': true,
+            'opt-hatch-type': 'cross',
+            'opt-hatch-spacing': 6,
+            'opt-hatch-angle': 45,
+            'opt-hatch-brightness': 170,
+            'opt-weight-var': 0
         },
         minimal: {
-            'opt-levels': 2, 'opt-thresh-low': 40, 'opt-thresh-high': 120,
-            'opt-simplify-method': 'visvalingam', 'opt-tolerance': 6,
-            'opt-smooth-type': 'geometric', 'opt-tension': 0.5,
-            'opt-stroke-width': 1, 'opt-edge-method': 'threshold',
-            'opt-hatch-enable': false, 'opt-weight-var': 0
+            'opt-levels': 2,
+            'opt-thresh-low': 40,
+            'opt-thresh-high': 120,
+            'opt-simplify-method': 'visvalingam',
+            'opt-tolerance': 6,
+            'opt-smooth-type': 'geometric',
+            'opt-tension': 0.5,
+            'opt-stroke-width': 1,
+            'opt-edge-method': 'threshold',
+            'opt-hatch-enable': false,
+            'opt-weight-var': 0
         },
         bold: {
-            'opt-levels': 8, 'opt-thresh-low': 10, 'opt-thresh-high': 220,
-            'opt-simplify-method': 'rdp', 'opt-tolerance': 1.5,
-            'opt-smooth-type': 'catmull-rom', 'opt-tension': -0.6,
-            'opt-stroke-width': 1.5, 'opt-edge-method': 'threshold',
-            'opt-hatch-enable': false, 'opt-weight-var': 0.8
+            'opt-levels': 8,
+            'opt-thresh-low': 10,
+            'opt-thresh-high': 220,
+            'opt-simplify-method': 'rdp',
+            'opt-tolerance': 1.5,
+            'opt-smooth-type': 'catmull-rom',
+            'opt-tension': -0.6,
+            'opt-stroke-width': 1.5,
+            'opt-edge-method': 'threshold',
+            'opt-hatch-enable': false,
+            'opt-weight-var': 0.8
         }
     };
 
@@ -56,8 +88,12 @@
     const $ = (id) => document.getElementById(id);
 
     // ── Helpers ──
-    function show(el) { if (el) el.style.display = ''; }
-    function hide(el) { if (el) el.style.display = 'none'; }
+    function show(el) {
+        if (el) el.style.display = '';
+    }
+    function hide(el) {
+        if (el) el.style.display = 'none';
+    }
 
     function readOption(id) {
         const el = $(id);
@@ -71,7 +107,10 @@
         const bar = $('progress-bar');
         const fill = $('progress-fill');
         const label = $('progress-text');
-        if (pct <= 0) { hide(bar); return; }
+        if (pct <= 0) {
+            hide(bar);
+            return;
+        }
         show(bar);
         fill.style.width = pct + '%';
         if (text) label.textContent = text;
@@ -151,8 +190,8 @@
         paper.setup(cOutput);
 
         // Sync c-input CSS size with c-output (Paper.js may adjust for HiDPI)
-        cInput.style.width = cOutput.style.width || (dim.widthPx + 'px');
-        cInput.style.height = cOutput.style.height || (dim.heightPx + 'px');
+        cInput.style.width = cOutput.style.width || dim.widthPx + 'px';
+        cInput.style.height = cOutput.style.height || dim.heightPx + 'px';
 
         fitCanvasToView();
 
@@ -249,8 +288,12 @@
                     lastRenderResult = LineRender.render(options);
                     var weightVar = readOption('opt-weight-var');
                     if (weightVar > 0) {
-                        applyWeightVariation(lastRenderResult, $('c-input'),
-                            readOption('opt-stroke-width'), weightVar);
+                        applyWeightVariation(
+                            lastRenderResult,
+                            $('c-input'),
+                            readOption('opt-stroke-width'),
+                            weightVar
+                        );
                     }
                     updateStats(lastRenderResult);
                     updateLayers(lastRenderResult);
@@ -271,7 +314,7 @@
         $('stat-paths').textContent = result.totalPaths;
         $('stat-points').textContent = result.totalPoints;
         $('stat-time').textContent = result.renderTimeMs + 'ms';
-        $('stat-gpu').textContent = (readOption('opt-gpu') && GPUProcessor.available) ? 'On' : 'Off';
+        $('stat-gpu').textContent = readOption('opt-gpu') && GPUProcessor.available ? 'On' : 'Off';
 
         var dim = getCanvasDimensions();
         var est = LineRender.estimatePlotTime(result.groups, dim.dpi);
@@ -288,10 +331,16 @@
             const item = document.createElement('div');
             item.className = 'layer-item';
             item.innerHTML =
-                '<span class="layer-color" style="background:' + (readOption('opt-stroke-color') || '#313639') + '"></span>' +
-                '<span class="layer-name">' + group.name + '</span>' +
-                '<button class="layer-toggle" data-idx="' + i + '" title="Toggle visibility">' +
-                    (group.visible ? '&#9673;' : '&#9675;') +
+                '<span class="layer-color" style="background:' +
+                (readOption('opt-stroke-color') || '#313639') +
+                '"></span>' +
+                '<span class="layer-name">' +
+                group.name +
+                '</span>' +
+                '<button class="layer-toggle" data-idx="' +
+                i +
+                '" title="Toggle visibility">' +
+                (group.visible ? '&#9673;' : '&#9675;') +
                 '</button>';
 
             item.querySelector('.layer-toggle').addEventListener('click', function (e) {
@@ -304,7 +353,9 @@
             });
 
             item.addEventListener('click', function () {
-                document.querySelectorAll('.layer-item').forEach(function (el) { el.classList.remove('selected'); });
+                document.querySelectorAll('.layer-item').forEach(function (el) {
+                    el.classList.remove('selected');
+                });
                 item.classList.add('selected');
             });
 
@@ -320,15 +371,26 @@
         }
         let info = '';
         if (item instanceof paper.Path) {
-            info = '<div class="info-row"><span>Type</span><span>Path</span></div>' +
-                '<div class="info-row"><span>Segments</span><span>' + item.segments.length + '</span></div>' +
-                '<div class="info-row"><span>Length</span><span>' + Math.round(item.length) + 'px</span></div>' +
-                '<div class="info-row"><span>Closed</span><span>' + (item.closed ? 'Yes' : 'No') + '</span></div>';
+            info =
+                '<div class="info-row"><span>Type</span><span>Path</span></div>' +
+                '<div class="info-row"><span>Segments</span><span>' +
+                item.segments.length +
+                '</span></div>' +
+                '<div class="info-row"><span>Length</span><span>' +
+                Math.round(item.length) +
+                'px</span></div>' +
+                '<div class="info-row"><span>Closed</span><span>' +
+                (item.closed ? 'Yes' : 'No') +
+                '</span></div>';
         } else if (item instanceof paper.Group) {
-            info = '<div class="info-row"><span>Type</span><span>Group</span></div>' +
-                '<div class="info-row"><span>Children</span><span>' + item.children.length + '</span></div>';
+            info =
+                '<div class="info-row"><span>Type</span><span>Group</span></div>' +
+                '<div class="info-row"><span>Children</span><span>' +
+                item.children.length +
+                '</span></div>';
         } else {
-            info = '<div class="info-row"><span>Type</span><span>' + item.className + '</span></div>';
+            info =
+                '<div class="info-row"><span>Type</span><span>' + item.className + '</span></div>';
         }
         el.innerHTML = info;
     }
@@ -347,8 +409,11 @@
         const canvas = $('c-output');
         const link = document.createElement('a');
         const now = new Date();
-        const ts = now.getHours().toString().padStart(2, '0') + '.' +
-            now.getMinutes().toString().padStart(2, '0') + '.' +
+        const ts =
+            now.getHours().toString().padStart(2, '0') +
+            '.' +
+            now.getMinutes().toString().padStart(2, '0') +
+            '.' +
             now.getSeconds().toString().padStart(2, '0');
         link.download = 'LineDrawing-' + ts + '.png';
         link.href = canvas.toDataURL('image/png');
@@ -411,7 +476,9 @@
         const dropZone = $('drop-zone');
         const fileInput = $('file-input');
 
-        dropZone.addEventListener('click', function () { fileInput.click(); });
+        dropZone.addEventListener('click', function () {
+            fileInput.click();
+        });
 
         fileInput.addEventListener('change', function () {
             if (fileInput.files && fileInput.files[0]) {
@@ -481,9 +548,7 @@
         var histogram = new Array(256).fill(0);
         var contentPixels = 0;
         for (var i = 0; i < pixels.length; i += 4) {
-            var lum = Math.round(
-                pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114
-            );
+            var lum = Math.round(pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
             if (lum < 248) {
                 histogram[lum]++;
                 contentPixels++;
@@ -494,7 +559,8 @@
 
         // Find brightness percentiles of the content pixels
         var cumulative = 0;
-        var p5 = 0, p95 = 0;
+        var p5 = 0,
+            p95 = 0;
         for (var b = 0; b < 256; b++) {
             cumulative += histogram[b];
             var pct = cumulative / contentPixels;
@@ -597,19 +663,25 @@
     }
 
     function setupAutoGenerate() {
-        document.querySelectorAll('#sidebar-left input, #sidebar-left select').forEach(function (el) {
-            if (el.id === 'opt-auto-generate' || el.id === 'opt-preset' ||
-                el.id === 'file-input') return;
-            var evt = (el.type === 'range') ? 'input' : 'change';
-            el.addEventListener(evt, function () {
-                // Any manual change resets preset to Custom
-                if (el.id !== 'opt-preset') {
-                    var presetEl = $('opt-preset');
-                    if (presetEl.value !== 'custom') presetEl.value = 'custom';
-                }
-                scheduleAutoGenerate();
+        document
+            .querySelectorAll('#sidebar-left input, #sidebar-left select')
+            .forEach(function (el) {
+                if (
+                    el.id === 'opt-auto-generate' ||
+                    el.id === 'opt-preset' ||
+                    el.id === 'file-input'
+                )
+                    return;
+                var evt = el.type === 'range' ? 'input' : 'change';
+                el.addEventListener(evt, function () {
+                    // Any manual change resets preset to Custom
+                    if (el.id !== 'opt-preset') {
+                        var presetEl = $('opt-preset');
+                        if (presetEl.value !== 'custom') presetEl.value = 'custom';
+                    }
+                    scheduleAutoGenerate();
+                });
             });
-        });
     }
 
     // ── Mobile sidebar ──
@@ -653,7 +725,9 @@
         };
         Object.keys(toolButtons).forEach(function (btnId) {
             $(btnId).addEventListener('click', function () {
-                document.querySelectorAll('.tool-group .tool-btn').forEach(function (b) { b.classList.remove('active'); });
+                document.querySelectorAll('.tool-group .tool-btn').forEach(function (b) {
+                    b.classList.remove('active');
+                });
                 $(btnId).classList.add('active');
                 if (Editor.initialized) {
                     Editor.setTool(toolButtons[btnId]);
@@ -661,17 +735,30 @@
             });
         });
 
-        $('btn-undo').addEventListener('click', function () { if (Editor.initialized) Editor.undo(); });
-        $('btn-redo').addEventListener('click', function () { if (Editor.initialized) Editor.redo(); });
+        $('btn-undo').addEventListener('click', function () {
+            if (Editor.initialized) Editor.undo();
+        });
+        $('btn-redo').addEventListener('click', function () {
+            if (Editor.initialized) Editor.redo();
+        });
 
-        $('btn-zoom-in').addEventListener('click', function () { if (Editor.initialized) Editor.zoom(1.25); });
-        $('btn-zoom-out').addEventListener('click', function () { if (Editor.initialized) Editor.zoom(0.8); });
-        $('btn-zoom-fit').addEventListener('click', function () { if (Editor.initialized) Editor.fitToView(); });
+        $('btn-zoom-in').addEventListener('click', function () {
+            if (Editor.initialized) Editor.zoom(1.25);
+        });
+        $('btn-zoom-out').addEventListener('click', function () {
+            if (Editor.initialized) Editor.zoom(0.8);
+        });
+        $('btn-zoom-fit').addEventListener('click', function () {
+            if (Editor.initialized) Editor.fitToView();
+        });
 
         $('btn-toggle-source').addEventListener('click', function () {
             var cInput = $('c-input');
             cInput.classList.toggle('show-source');
-            $('btn-toggle-source').classList.toggle('active', cInput.classList.contains('show-source'));
+            $('btn-toggle-source').classList.toggle(
+                'active',
+                cInput.classList.contains('show-source')
+            );
         });
 
         $('btn-auto-threshold').addEventListener('click', autoThreshold);
@@ -694,7 +781,10 @@
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();
                 if (Editor.initialized) Editor.undo();
-            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+            } else if (
+                (e.ctrlKey || e.metaKey) &&
+                (e.key === 'y' || (e.shiftKey && e.key === 'z'))
+            ) {
                 e.preventDefault();
                 if (Editor.initialized) Editor.redo();
             } else if (e.key === 'v' || e.key === 'V') {
@@ -822,7 +912,9 @@
 
         // Hide loading
         $('loading-overlay').classList.add('hidden');
-        setTimeout(function () { hide($('loading-overlay')); }, 500);
+        setTimeout(function () {
+            hide($('loading-overlay'));
+        }, 500);
     }
 
     // Wait for OpenCV to load
