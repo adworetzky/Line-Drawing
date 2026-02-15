@@ -152,6 +152,17 @@ const Editor = (function () {
 
     return {
         init: function (callbacks) {
+            // Only initialize once - prevent duplicate event listeners
+            if (_initialized) {
+                // Just update callbacks if already initialized
+                if (callbacks) {
+                    onSelectionChange = callbacks.onSelectionChange || onSelectionChange;
+                    onHistoryChange = callbacks.onHistoryChange || onHistoryChange;
+                    onZoomChange = callbacks.onZoomChange || onZoomChange;
+                }
+                return;
+            }
+
             if (callbacks) {
                 onSelectionChange = callbacks.onSelectionChange || null;
                 onHistoryChange = callbacks.onHistoryChange || null;

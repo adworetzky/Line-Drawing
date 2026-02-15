@@ -140,23 +140,91 @@
         $('dim-pixel-readout').textContent = dim.widthPx + ' x ' + dim.heightPx;
     }
 
+    // ── Image size validation ──
+    function validateImageSize(imgElement, file) {
+        return new Promise(function (resolve, reject) {
+            // Check file size first (before full load)
+            var MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+            if (file && file.size > MAX_FILE_SIZE) {
+                reject({
+                    type: 'file_size',
+                    message:
+                        'File too large (' +
+                        (file.size / 1024 / 1024).toFixed(1) +
+                        'MB). Maximum: 10MB',
+                    size: file.size
+                });
+                return;
+            }
+
+            // Check dimensions after image loads
+            var MAX_DIMENSION = 4000;
+            var MAX_PIXELS = 4000 * 4000;
+
+            var checkDimensions = function () {
+                var pixels = imgElement.naturalWidth * imgElement.naturalHeight;
+                var maxDim = Math.max(imgElement.naturalWidth, imgElement.naturalHeight);
+
+                if (pixels > MAX_PIXELS || maxDim > MAX_DIMENSION) {
+                    reject({
+                        type: 'dimensions',
+                        message:
+                            'Image too large (' +
+                            imgElement.naturalWidth +
+                            'x' +
+                            imgElement.naturalHeight +
+                            'px). Maximum: ' +
+                            MAX_DIMENSION +
+                            'px per side or ' +
+                            (MAX_PIXELS / 1000000).toFixed(1) +
+                            ' megapixels total.',
+                        width: imgElement.naturalWidth,
+                        height: imgElement.naturalHeight
+                    });
+                    return;
+                }
+
+                resolve();
+            };
+
+            // If image already loaded, check immediately
+            if (imgElement.complete && imgElement.naturalWidth > 0) {
+                checkDimensions();
+            } else {
+                // Otherwise wait for load
+                imgElement.addEventListener('load', checkDimensions, { once: true });
+            }
+        });
+    }
+
     // ── Image loading ──
-    function loadImage(src) {
+    function loadImage(src, file) {
         var img = $('source-img');
-        img.onload = function () {
-            imageLoaded = true;
-            $('preview-img').src = img.src;
-            show($('source-preview'));
-            hide($('drop-zone'));
-            hide($('empty-state'));
-            show($('canvas-wrapper'));
-            setupCanvas();
-        };
+        img.src = src;
+
+        validateImageSize(img, file)
+            .then(function () {
+                imageLoaded = true;
+                $('preview-img').src = img.src;
+                show($('source-preview'));
+                hide($('drop-zone'));
+                hide($('empty-state'));
+                show($('canvas-wrapper'));
+                setupCanvas();
+            })
+            .catch(function (error) {
+                alert('⚠️ Image Error\n\n' + error.message + '\n\nPlease use a smaller image.');
+                console.error('Image validation failed:', error);
+                imageLoaded = false;
+                // Reset to allow trying again
+                img.src = '';
+            });
+
         img.onerror = function () {
             console.error('Failed to load image');
+            alert('Failed to load image. Please try a different file.');
             imageLoaded = false;
         };
-        img.src = src;
     }
 
     // ── Canvas setup (called on load AND on dimension/margin changes) ──
@@ -491,7 +559,7 @@
 
         fileInput.addEventListener('change', function () {
             if (fileInput.files && fileInput.files[0]) {
-                loadImage(URL.createObjectURL(fileInput.files[0]));
+                loadImage(URL.createObjectURL(fileInput.files[0]), fileInput.files[0]);
             }
         });
 
@@ -506,7 +574,7 @@
             e.preventDefault();
             dropZone.classList.remove('drag-over');
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                loadImage(URL.createObjectURL(e.dataTransfer.files[0]));
+                loadImage(URL.createObjectURL(e.dataTransfer.files[0]), e.dataTransfer.files[0]);
             }
         });
 

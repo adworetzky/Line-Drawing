@@ -225,6 +225,40 @@ const GPUProcessor = (function () {
             if (!_available) {
                 console.warn('Failed to compile GPU shaders, falling back to CPU');
             }
+
+            // Add WebGL context loss/restore handlers for mobile stability
+            canvas.addEventListener(
+                'webglcontextlost',
+                function (event) {
+                    event.preventDefault();
+                    console.warn('WebGL context lost, disabling GPU acceleration');
+                    _available = false;
+                },
+                false
+            );
+
+            canvas.addEventListener(
+                'webglcontextrestored',
+                function () {
+                    console.log('WebGL context restored, re-initializing GPU');
+                    // Re-compile all shader programs
+                    programs.grayscale = createProgram(FRAG_GRAYSCALE);
+                    programs.threshold = createProgram(FRAG_THRESHOLD);
+                    programs.sobel = createProgram(FRAG_SOBEL);
+                    programs.blurH = createProgram(FRAG_BLUR_H);
+                    programs.blurV = createProgram(FRAG_BLUR_V);
+
+                    _available = Object.values(programs).every(Boolean);
+
+                    if (_available) {
+                        console.log('GPU re-initialized successfully');
+                    } else {
+                        console.warn('Failed to restore GPU, remaining on CPU fallback');
+                    }
+                },
+                false
+            );
+
             return _available;
         },
 
