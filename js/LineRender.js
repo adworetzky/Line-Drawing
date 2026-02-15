@@ -45,7 +45,8 @@ const LineRender = (function () {
             var allPoints = [];
             simplified.forEach(function (contour) {
                 contour.forEach(function (pt) {
-                    allPoints.push(new paper.Point(pt.x, pt.y));
+                    // pt is [x, y] array, not {x, y} object
+                    allPoints.push(new paper.Point(pt[0], pt[1]));
                 });
             });
 

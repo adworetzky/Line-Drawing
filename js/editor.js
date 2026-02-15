@@ -252,6 +252,7 @@ const Editor = (function () {
                 onZoomChange = callbacks.onZoomChange || null;
             }
             initTools();
+            this.enableMouseWheelZoom();
             _initialized = true;
             this.setTool('select');
         },
@@ -330,10 +331,23 @@ const Editor = (function () {
             if (onHistoryChange) onHistoryChange();
         },
 
-        // Zoom
+        // Zoom - keeps the artboard centered
         zoom: function (factor) {
+            const oldZoom = zoomLevel;
             zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * factor));
+
+            // Calculate the canvas center (artboard center)
+            const canvas = paper.view.element;
+            const canvasCenter = new paper.Point(canvas.width / 2, canvas.height / 2);
+
+            // Zoom while keeping canvas center in view
+            const beta = oldZoom / zoomLevel;
+            const offset = canvasCenter.subtract(paper.view.center);
+            const newCenter = canvasCenter.subtract(offset.multiply(beta));
+
             paper.view.zoom = zoomLevel;
+            paper.view.center = newCenter;
+
             if (onZoomChange) onZoomChange(zoomLevel);
         },
 
@@ -406,6 +420,40 @@ const Editor = (function () {
                 }
             });
             return { paths, points };
+        },
+
+        // Enable mouse wheel zoom
+        enableMouseWheelZoom: function () {
+            const canvas = document.getElementById('c-output');
+            if (!canvas) return;
+
+            canvas.addEventListener(
+                'wheel',
+                function (e) {
+                    e.preventDefault();
+                    const delta = e.deltaY;
+                    const zoomFactor = delta > 0 ? 0.9 : 1.1;
+
+                    // Get mouse position in view coordinates
+                    const rect = canvas.getBoundingClientRect();
+                    const mousePoint = new paper.Point(e.clientX - rect.left, e.clientY - rect.top);
+                    const viewPoint = paper.view.viewToProject(mousePoint);
+
+                    // Zoom centered on mouse position
+                    const oldZoom = zoomLevel;
+                    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * zoomFactor));
+
+                    const beta = oldZoom / zoomLevel;
+                    const offset = viewPoint.subtract(paper.view.center);
+                    const newCenter = viewPoint.subtract(offset.multiply(beta));
+
+                    paper.view.zoom = zoomLevel;
+                    paper.view.center = newCenter;
+
+                    if (onZoomChange) onZoomChange(zoomLevel);
+                },
+                { passive: false }
+            );
         }
     };
 })();
