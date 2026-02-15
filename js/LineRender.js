@@ -5,6 +5,62 @@
 const LineRender = (function () {
     'use strict';
 
+    /**
+     * Generate stippling (dots) based on image brightness.
+     * Darker areas get more/bigger dots, lighter areas get fewer/smaller dots.
+     * Popular technique for pen plotters.
+     */
+    function generateStippling(inputCanvas, options) {
+        var dotDensity = options.dotDensity || 5000; // Total number of dots
+        var minDotSize = options.minDotSize || 0.5; // Minimum dot radius
+        var maxDotSize = options.maxDotSize || 3; // Maximum dot radius
+        var distribution = options.distribution || 'weighted'; // 'weighted' or 'uniform'
+
+        var w = inputCanvas.width;
+        var h = inputCanvas.height;
+        var ctx = inputCanvas.getContext('2d');
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var pixels = imageData.data;
+
+        // Build brightness map
+        var brightnessMap = new Float32Array(w * h);
+        for (var i = 0; i < pixels.length; i += 4) {
+            var lum = (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114) / 255;
+            brightnessMap[i / 4] = 1 - lum; // Invert: darker = higher value
+        }
+
+        // Generate dots using weighted random sampling
+        var dots = [];
+        for (var n = 0; n < dotDensity; n++) {
+            var x, y, brightness;
+
+            if (distribution === 'weighted') {
+                // Weighted sampling: prefer darker areas
+                var attempts = 0;
+                do {
+                    x = Math.random() * w;
+                    y = Math.random() * h;
+                    var idx = Math.floor(y) * w + Math.floor(x);
+                    brightness = brightnessMap[idx] || 0;
+                    attempts++;
+                } while (Math.random() > brightness && attempts < 5);
+            } else {
+                // Uniform distribution
+                x = Math.random() * w;
+                y = Math.random() * h;
+                var idx2 = Math.floor(y) * w + Math.floor(x);
+                brightness = brightnessMap[idx2] || 0;
+            }
+
+            // Dot size based on local brightness
+            var radius = minDotSize + brightness * (maxDotSize - minDotSize);
+
+            dots.push({ x: x, y: y, radius: radius });
+        }
+
+        return dots;
+    }
+
     // Reusable temp canvas for GPU contour extraction (avoids DOM allocation per level)
     var _gpuTempCanvas = null;
 
@@ -648,8 +704,72 @@ const LineRender = (function () {
         return h + 'h ' + (m > 0 ? m + 'm' : '');
     }
 
+    /**
+     * Render stippling (dots) from image.
+     * Returns Paper.js groups with circular dots.
+     */
+    function renderStippling(options) {
+        var inputCanvas = options.inputCanvas;
+        var dotDensity = options.dotDensity || 5000;
+        var minDotSize = options.minDotSize || 0.5;
+        var maxDotSize = options.maxDotSize || 3;
+        var distribution = options.distribution || 'weighted';
+        var strokeColor = options.strokeColor || '#000000';
+        var onProgress = options.onProgress;
+
+        return new Promise(function (resolve) {
+            var t0 = performance.now();
+            paper.project.clear();
+
+            if (onProgress) onProgress(20);
+
+            // Generate dots
+            var dots = generateStippling(inputCanvas, {
+                dotDensity: dotDensity,
+                minDotSize: minDotSize,
+                maxDotSize: maxDotSize,
+                distribution: distribution
+            });
+
+            if (onProgress) onProgress(60);
+
+            // Create Paper.js circles
+            var group = new paper.Group();
+            group.name = 'Stippling (' + dots.length + ' dots)';
+
+            dots.forEach(function (dot) {
+                var circle = new paper.Path.Circle({
+                    center: [dot.x, dot.y],
+                    radius: dot.radius
+                });
+                circle.fillColor = strokeColor;
+                group.addChild(circle);
+            });
+
+            if (onProgress) onProgress(90);
+
+            // Clip to margins if specified
+            var margin = (options.margin || 0) * (options.dpi || 96);
+            if (margin > 0) {
+                clipPathsToMargin([group], inputCanvas.width, inputCanvas.height, margin);
+            }
+
+            paper.view.draw();
+
+            if (onProgress) onProgress(100);
+
+            resolve({
+                groups: [group],
+                totalPaths: dots.length,
+                totalPoints: dots.length,
+                renderTimeMs: Math.round(performance.now() - t0)
+            });
+        });
+    }
+
     return {
         render,
+        renderStippling,
         estimatePlotTime,
         simplifyPoints,
         buildThresholds,

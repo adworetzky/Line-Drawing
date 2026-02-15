@@ -340,34 +340,48 @@
 
         // Collect options from UI
         var dim = getCanvasDimensions();
+        var renderMode = readOption('opt-render-mode') || 'lines';
+
         const options = {
             inputCanvas: $('c-input'),
-            levels: readOption('opt-levels'),
-            threshLow: readOption('opt-thresh-low'),
-            threshHigh: readOption('opt-thresh-high'),
-            minPoints: readOption('opt-min-points'),
-            edgeMethod: readOption('opt-edge-method'),
-            simplifyMethod: readOption('opt-simplify-method'),
-            tolerance: readOption('opt-tolerance'),
-            smoothType: readOption('opt-smooth-type'),
-            tension: readOption('opt-tension'),
-            strokeWidth: readOption('opt-stroke-width'),
-            strokeColor: readOption('opt-stroke-color'),
-            useGPU: readOption('opt-gpu'),
-            hatchEnabled: readOption('opt-hatch-enable'),
-            hatchType: readOption('opt-hatch-type'),
-            hatchSpacing: readOption('opt-hatch-spacing'),
-            hatchAngle: readOption('opt-hatch-angle'),
-            hatchBrightness: readOption('opt-hatch-brightness'),
             margin: readOption('opt-margin'),
             dpi: dim.dpi,
+            strokeColor: readOption('opt-stroke-color'),
             onProgress: function (pct) {
                 setProgress(pct, 'Processing... ' + pct + '%');
             }
         };
 
-        // render() is async — yields between threshold levels to keep UI responsive
-        LineRender.render(options)
+        // Add mode-specific options
+        if (renderMode === 'stippling') {
+            options.dotDensity = readOption('opt-dot-density');
+            options.minDotSize = readOption('opt-min-dot-size');
+            options.maxDotSize = readOption('opt-max-dot-size');
+            options.distribution = readOption('opt-dot-distribution');
+        } else {
+            options.levels = readOption('opt-levels');
+            options.threshLow = readOption('opt-thresh-low');
+            options.threshHigh = readOption('opt-thresh-high');
+            options.minPoints = readOption('opt-min-points');
+            options.edgeMethod = readOption('opt-edge-method');
+            options.simplifyMethod = readOption('opt-simplify-method');
+            options.tolerance = readOption('opt-tolerance');
+            options.smoothType = readOption('opt-smooth-type');
+            options.tension = readOption('opt-tension');
+            options.strokeWidth = readOption('opt-stroke-width');
+            options.useGPU = readOption('opt-gpu');
+            options.hatchEnabled = readOption('opt-hatch-enable');
+            options.hatchType = readOption('opt-hatch-type');
+            options.hatchSpacing = readOption('opt-hatch-spacing');
+            options.hatchAngle = readOption('opt-hatch-angle');
+            options.hatchBrightness = readOption('opt-hatch-brightness');
+        }
+
+        // Call appropriate renderer - both are async and yield to keep UI responsive
+        var renderPromise =
+            renderMode === 'stippling' ? LineRender.renderStippling(options) : LineRender.render(options);
+
+        renderPromise
             .then(function (result) {
                 lastRenderResult = result;
                 var weightVar = readOption('opt-weight-var');
@@ -711,9 +725,153 @@
         paper.view.draw();
     }
 
-    // ── Presets ──
-    function applyPreset(name) {
-        var preset = PRESETS[name];
+    // ── Preset Management (Built-in + Custom) ──
+
+    // Load custom presets from localStorage
+    function loadCustomPresets() {
+        try {
+            var saved = localStorage.getItem('customPresets');
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            console.error('Failed to load custom presets:', e);
+            return {};
+        }
+    }
+
+    // Save custom presets to localStorage
+    function saveCustomPresets(customPresets) {
+        try {
+            localStorage.setItem('customPresets', JSON.stringify(customPresets));
+        } catch (e) {
+            console.error('Failed to save custom presets:', e);
+        }
+    }
+
+    // Get current settings as a preset object
+    function getCurrentSettings() {
+        var settings = {};
+        // Collect all option values
+        var optionIds = [
+            'opt-levels',
+            'opt-thresh-low',
+            'opt-thresh-high',
+            'opt-min-points',
+            'opt-simplify-method',
+            'opt-tolerance',
+            'opt-smooth-type',
+            'opt-tension',
+            'opt-stroke-width',
+            'opt-stroke-color',
+            'opt-edge-method',
+            'opt-hatch-enable',
+            'opt-hatch-type',
+            'opt-hatch-spacing',
+            'opt-hatch-angle',
+            'opt-hatch-brightness',
+            'opt-weight-var',
+            'opt-gpu'
+        ];
+        optionIds.forEach(function (id) {
+            var el = $(id);
+            if (!el) return;
+            if (el.type === 'checkbox') {
+                settings[id] = el.checked;
+            } else if (el.type === 'range' || el.type === 'number') {
+                settings[id] = parseFloat(el.value);
+            } else {
+                settings[id] = el.value;
+            }
+        });
+        return settings;
+    }
+
+    // Save current settings as a custom preset
+    function saveCurrentPreset() {
+        var name = prompt('Enter preset name:');
+        if (!name || name.trim() === '') return;
+
+        name = name.trim();
+
+        // Don't allow overwriting built-in presets
+        if (PRESETS[name.toLowerCase()]) {
+            alert('Cannot overwrite built-in preset "' + name + '"');
+            return;
+        }
+
+        var customPresets = loadCustomPresets();
+        customPresets[name] = getCurrentSettings();
+        saveCustomPresets(customPresets);
+
+        updatePresetButtons();
+        alert('Preset "' + name + '" saved!');
+    }
+
+    // Delete a custom preset
+    function deleteCustomPreset(name) {
+        if (!confirm('Delete preset "' + name + '"?')) return;
+
+        var customPresets = loadCustomPresets();
+        delete customPresets[name];
+        saveCustomPresets(customPresets);
+
+        updatePresetButtons();
+    }
+
+    // Update preset buttons to include custom presets
+    function updatePresetButtons() {
+        var container = $('preset-buttons');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        // Built-in presets
+        Object.keys(PRESETS).forEach(function (name) {
+            var btn = document.createElement('button');
+            btn.className = 'preset-btn';
+            btn.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+            btn.onclick = function () {
+                applyPreset(name);
+            };
+            container.appendChild(btn);
+        });
+
+        // Custom presets with delete button
+        var customPresets = loadCustomPresets();
+        Object.keys(customPresets).forEach(function (name) {
+            var wrapper = document.createElement('div');
+            wrapper.className = 'custom-preset-wrapper';
+
+            var btn = document.createElement('button');
+            btn.className = 'preset-btn custom-preset';
+            btn.textContent = name;
+            btn.onclick = function () {
+                applyPreset(name, customPresets);
+            };
+
+            var deleteBtn = document.createElement('button');
+            deleteBtn.className = 'preset-delete-btn';
+            deleteBtn.textContent = '×';
+            deleteBtn.title = 'Delete preset';
+            deleteBtn.onclick = function (e) {
+                e.stopPropagation();
+                deleteCustomPreset(name);
+            };
+
+            wrapper.appendChild(btn);
+            wrapper.appendChild(deleteBtn);
+            container.appendChild(wrapper);
+        });
+
+        // Save current preset button
+        var saveBtn = document.createElement('button');
+        saveBtn.className = 'preset-btn save-preset-btn';
+        saveBtn.textContent = '+ Save Current';
+        saveBtn.onclick = saveCurrentPreset;
+        container.appendChild(saveBtn);
+    }
+
+    function applyPreset(name, customPresets) {
+        var preset = PRESETS[name] || (customPresets || loadCustomPresets())[name];
         if (!preset) return;
         Object.keys(preset).forEach(function (id) {
             var el = $(id);
@@ -733,12 +891,8 @@
     }
 
     function setupPresets() {
-        $('opt-preset').addEventListener('change', function () {
-            if (this.value !== 'custom') {
-                applyPreset(this.value);
-                scheduleAutoGenerate();
-            }
-        });
+        // Initialize preset buttons (built-in + custom from localStorage)
+        updatePresetButtons();
     }
 
     // ── Auto-generate ──
@@ -760,19 +914,9 @@
         document
             .querySelectorAll('#sidebar-left input, #sidebar-left select')
             .forEach(function (el) {
-                if (
-                    el.id === 'opt-auto-generate' ||
-                    el.id === 'opt-preset' ||
-                    el.id === 'file-input'
-                )
-                    return;
+                if (el.id === 'opt-auto-generate' || el.id === 'file-input') return;
                 var evt = el.type === 'range' ? 'input' : 'change';
                 el.addEventListener(evt, function () {
-                    // Any manual change resets preset to Custom
-                    if (el.id !== 'opt-preset') {
-                        var presetEl = $('opt-preset');
-                        if (presetEl.value !== 'custom') presetEl.value = 'custom';
-                    }
                     scheduleAutoGenerate();
                 });
             });
@@ -799,6 +943,43 @@
             overlay.classList.remove('visible');
             generate();
         });
+    }
+
+    // ── Render mode toggle (lines vs stippling) ──
+    function setupRenderModeToggle() {
+        var modeSelect = $('opt-render-mode');
+        var stipplingOpts = $('stippling-options');
+        var edgeLabel = $('edge-detection-label');
+
+        function updateModeUI() {
+            var mode = modeSelect.value;
+            if (mode === 'stippling') {
+                show(stipplingOpts);
+                // Hide line-specific options when in stippling mode
+                var lineOnlyPanels = document.querySelectorAll(
+                    '#edge-detection-label, #panel-simplification, #panel-smoothing, #panel-hatching'
+                );
+                lineOnlyPanels.forEach(function (el) {
+                    if (el) hide(el);
+                });
+            } else {
+                hide(stipplingOpts);
+                // Show line-specific options
+                var lineOnlyPanels2 = document.querySelectorAll(
+                    '#edge-detection-label, #panel-simplification, #panel-smoothing, #panel-hatching'
+                );
+                lineOnlyPanels2.forEach(function (el) {
+                    if (el) show(el);
+                });
+            }
+        }
+
+        modeSelect.addEventListener('change', function () {
+            updateModeUI();
+            scheduleAutoGenerate();
+        });
+
+        updateModeUI(); // Initialize on load
     }
 
     // ── Hatching toggle ──
@@ -1032,6 +1213,7 @@
         setupSliderValues();
         setupImageInput();
         setupBackgroundOption();
+        setupRenderModeToggle();
         setupHatchingOption();
         setupPresets();
         setupToolbar();

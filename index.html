@@ -216,17 +216,10 @@
             <aside id="sidebar-left">
                 <!-- Presets -->
                 <div class="sidebar-presets">
-                    <label class="control-label">
-                        Preset
-                        <select id="opt-preset">
-                            <option value="custom">Custom</option>
-                            <option value="sketch">Sketch</option>
-                            <option value="technical">Technical</option>
-                            <option value="hatched">Hatched</option>
-                            <option value="minimal">Minimal</option>
-                            <option value="bold">Bold</option>
-                        </select>
-                    </label>
+                    <label class="control-label">Presets</label>
+                    <div id="preset-buttons" class="preset-buttons-container">
+                        <!-- Dynamically populated by updatePresetButtons() -->
+                    </div>
                 </div>
 
                 <!-- Image source -->
@@ -261,6 +254,46 @@
                 <section class="panel">
                     <h3 class="panel-title" data-toggle="panel-processing">Processing</h3>
                     <div class="panel-body" id="panel-processing">
+                        <label class="control-label">
+                            Render Mode
+                            <select id="opt-render-mode">
+                                <option value="lines">Lines (Contours)</option>
+                                <option value="stippling">Stippling (Dots)</option>
+                            </select>
+                        </label>
+
+                        <!-- Stippling options (hidden by default) -->
+                        <div id="stippling-options" style="display: none">
+                            <label class="control-label">
+                                Dot Density
+                                <div class="slider-row">
+                                    <input type="range" id="opt-dot-density" min="1000" max="20000" value="5000" step="500" />
+                                    <span class="slider-value" data-for="opt-dot-density">5000</span>
+                                </div>
+                            </label>
+                            <label class="control-label">
+                                Min Dot Size
+                                <div class="slider-row">
+                                    <input type="range" id="opt-min-dot-size" min="0.1" max="2" value="0.5" step="0.1" />
+                                    <span class="slider-value" data-for="opt-min-dot-size" data-suffix="px">0.5px</span>
+                                </div>
+                            </label>
+                            <label class="control-label">
+                                Max Dot Size
+                                <div class="slider-row">
+                                    <input type="range" id="opt-max-dot-size" min="1" max="8" value="3" step="0.5" />
+                                    <span class="slider-value" data-for="opt-max-dot-size" data-suffix="px">3px</span>
+                                </div>
+                            </label>
+                            <label class="control-label">
+                                Distribution
+                                <select id="opt-dot-distribution">
+                                    <option value="weighted">Weighted (Prefer Dark)</option>
+                                    <option value="uniform">Uniform</option>
+                                </select>
+                            </label>
+                        </div>
+
                         <div class="toggle-row">
                             <label>GPU Acceleration</label>
                             <label class="switch">
@@ -268,7 +301,7 @@
                                 <span class="slider"></span>
                             </label>
                         </div>
-                        <label class="control-label">
+                        <label class="control-label" id="edge-detection-label">
                             Edge Detection
                             <select id="opt-edge-method">
                                 <option value="threshold">Brightness Threshold</option>
