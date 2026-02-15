@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <title>Line Drawing Studio</title>
         <!-- Google Fonts for Sci-Fi aesthetic -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -243,7 +243,7 @@
                                 <polyline points="21 15 16 10 5 21" />
                             </svg>
                             <p>Drop image or click to upload</p>
-                            <input type="file" id="file-input" accept="image/*" hidden />
+                            <input type="file" id="file-input" accept="image/*" capture="environment" hidden />
                         </div>
                         <div class="source-preview" id="source-preview" style="display: none">
                             <img id="preview-img" alt="Source preview" />

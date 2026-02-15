@@ -58,10 +58,11 @@ const Editor = (function () {
 
         let dragOffset = null;
 
+        // Mouse handlers
         selectTool.onMouseDown = function (event) {
             const hitResult = paper.project.hitTest(event.point, {
                 stroke: true,
-                tolerance: 8,
+                tolerance: 12, // Larger for touch
                 fill: false
             });
             clearSelection();
@@ -127,7 +128,7 @@ const Editor = (function () {
         eraseTool.onMouseDown = function (event) {
             const hitResult = paper.project.hitTest(event.point, {
                 stroke: true,
-                tolerance: 8,
+                tolerance: 12, // Larger for touch
                 fill: false
             });
             if (hitResult && hitResult.item) {
@@ -140,7 +141,7 @@ const Editor = (function () {
         eraseTool.onMouseDrag = function (event) {
             const hitResult = paper.project.hitTest(event.point, {
                 stroke: true,
-                tolerance: 8,
+                tolerance: 12, // Larger for touch
                 fill: false
             });
             if (hitResult && hitResult.item) {
@@ -148,6 +149,88 @@ const Editor = (function () {
                 paper.view.draw();
             }
         };
+
+        // Add native touch event support for better mobile UX
+        // Paper.js doesn't handle touch well by default
+        const canvas = document.getElementById('c-output');
+        if (canvas) {
+            // Prevent default touch behaviors
+            canvas.style.touchAction = 'none';
+
+            // Touch event handlers
+            let touchStartPoint = null;
+            let isTouching = false;
+
+            canvas.addEventListener(
+                'touchstart',
+                function (e) {
+                    e.preventDefault();
+                    if (e.touches.length === 1) {
+                        isTouching = true;
+                        const touch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const point = new paper.Point(touch.clientX - rect.left, touch.clientY - rect.top);
+                        touchStartPoint = paper.view.viewToProject(point);
+
+                        // Trigger appropriate tool handler
+                        const activeTool = paper.tools.find((t) => t === paper.tool);
+                        if (activeTool && activeTool.onMouseDown) {
+                            activeTool.onMouseDown({ point: touchStartPoint });
+                        }
+                    }
+                },
+                { passive: false }
+            );
+
+            canvas.addEventListener(
+                'touchmove',
+                function (e) {
+                    e.preventDefault();
+                    if (isTouching && e.touches.length === 1) {
+                        const touch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const point = new paper.Point(touch.clientX - rect.left, touch.clientY - rect.top);
+                        const touchPoint = paper.view.viewToProject(point);
+
+                        // Trigger appropriate tool handler
+                        const activeTool = paper.tools.find((t) => t === paper.tool);
+                        if (activeTool && activeTool.onMouseDrag) {
+                            activeTool.onMouseDrag({ point: touchPoint });
+                        }
+                        paper.view.draw();
+                    }
+                },
+                { passive: false }
+            );
+
+            canvas.addEventListener(
+                'touchend',
+                function (e) {
+                    e.preventDefault();
+                    if (isTouching) {
+                        isTouching = false;
+                        touchStartPoint = null;
+
+                        // Trigger appropriate tool handler
+                        const activeTool = paper.tools.find((t) => t === paper.tool);
+                        if (activeTool && activeTool.onMouseUp) {
+                            activeTool.onMouseUp();
+                        }
+                    }
+                },
+                { passive: false }
+            );
+
+            canvas.addEventListener(
+                'touchcancel',
+                function (e) {
+                    e.preventDefault();
+                    isTouching = false;
+                    touchStartPoint = null;
+                },
+                { passive: false }
+            );
+        }
     }
 
     return {

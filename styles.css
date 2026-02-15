@@ -137,6 +137,9 @@ body {
     background: var(--bg-primary);
     overflow: hidden;
     user-select: none;
+    /* Prevent pull-to-refresh and overscroll on mobile */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
     /* Mobile optimizations */
     overscroll-behavior: none; /* Prevent iOS rubber band effect */
     -webkit-tap-highlight-color: transparent; /* Remove iOS tap highlight */
@@ -1123,6 +1126,8 @@ input[type='color']::-webkit-color-swatch {
     justify-content: center;
     /* Enable smooth scrolling on iOS */
     -webkit-overflow-scrolling: touch;
+    /* Prevent mobile overscroll bounce */
+    overscroll-behavior: contain;
 }
 #canvas-wrapper {
     position: relative;
@@ -1587,12 +1592,17 @@ input[type='color']::-webkit-color-swatch {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 200;
+    z-index: 240; /* Below sidebar (250) but above canvas */
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
 }
 #sidebar-overlay.visible {
     display: block;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* === Mobile toolbar buttons === */
@@ -1621,6 +1631,11 @@ input[type='color']::-webkit-color-swatch {
 @media (max-width: 768px) {
     :root {
         --sidebar-w: 300px;
+    }
+
+    /* Prevent text selection on mobile */
+    * {
+        -webkit-tap-highlight-color: transparent;
     }
 
     /* Toolbar */
@@ -1657,6 +1672,9 @@ input[type='color']::-webkit-color-swatch {
         transform: translateX(-100%);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: none;
+        /* Enable momentum scrolling on iOS */
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     #sidebar-left.open {
         transform: translateX(0);
@@ -1672,44 +1690,73 @@ input[type='color']::-webkit-color-swatch {
         width: 100%;
     }
 
-    /* Touch-friendly controls */
+    /* Touch-friendly controls - MINIMUM 44x44px per iOS HIG */
     input[type='range'] {
-        height: 28px; /* Larger tap target */
+        height: 32px; /* Larger tap target */
         cursor: pointer;
+        min-height: 44px; /* iOS minimum */
     }
     input[type='range']::-webkit-slider-thumb {
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
     }
     input[type='range']::-moz-range-thumb {
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
     }
     .tool-btn {
-        width: 44px; /* iOS recommended minimum: 44x44pt */
+        min-width: 44px; /* iOS recommended minimum: 44x44pt */
+        min-height: 44px;
+        width: 44px;
         height: 44px;
     }
     select {
-        padding: 8px;
-        font-size: 13px;
+        padding: 10px 8px;
+        font-size: 14px;
+        min-height: 44px; /* iOS minimum */
     }
+    input[type='checkbox'] {
+        min-width: 20px;
+        min-height: 20px;
+        width: 20px;
+        height: 20px;
+    }
+    /* Panel titles are clickable - make them bigger */
     .panel-title {
-        padding: 12px 14px;
-        font-size: 12px;
+        padding: 14px;
+        font-size: 13px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
     }
     .panel-body {
         padding: 10px 14px 16px;
-        gap: 12px;
+        gap: 14px;
     }
     .control-label {
-        gap: 6px;
-        font-size: 12px;
+        gap: 8px;
+        font-size: 13px;
     }
 
-    /* Export buttons compact */
+    /* Export buttons compact but still tappable */
     .export-btn {
-        padding: 6px 10px;
-        font-size: 11px;
+        padding: 10px 12px;
+        font-size: 12px;
+        min-height: 44px;
+    }
+
+    /* Preset buttons larger for touch */
+    .preset-btn {
+        min-height: 44px;
+        padding: 10px 12px;
+    }
+
+    /* Theme buttons larger */
+    .theme-btn {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        min-height: 40px;
     }
 }
 
@@ -1723,10 +1770,23 @@ input[type='color']::-webkit-color-swatch {
     }
     :root {
         --sidebar-w: 100vw;
+        --toolbar-h: 52px; /* Slightly smaller on small screens */
     }
     #sidebar-left {
         width: 100vw;
         min-width: 100vw;
+    }
+
+    /* Larger touch targets on small screens */
+    .tool-btn {
+        min-width: 48px;
+        min-height: 48px;
+    }
+
+    /* Better spacing for small screens */
+    .panel-body {
+        padding: 8px 12px 14px;
+        gap: 12px;
     }
 }
 
