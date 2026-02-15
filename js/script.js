@@ -848,11 +848,7 @@
                 // Save preference
                 localStorage.setItem('edex-theme', theme);
 
-                // Add glitch effect to body
-                document.body.style.animation = 'glitch 0.3s ease';
-                setTimeout(function () {
-                    document.body.style.animation = '';
-                }, 300);
+                // Removed glitch effect on theme change
             });
         });
     }

@@ -701,7 +701,7 @@ body::after {
 }
 
 .panel-title:active {
-    animation: glitch 0.3s ease;
+    /* Removed glitch animation */
 }
 
 .panel-title::after {
@@ -728,22 +728,22 @@ body::after {
     }
 }
 
-/* Glitch effect */
+/* Glitch effect - DISABLED */
 @keyframes glitch {
     0% {
         transform: translate(0);
     }
     20% {
-        transform: translate(-2px, 2px);
+        transform: translate(0, 0);
     }
     40% {
-        transform: translate(-2px, -2px);
+        transform: translate(0, 0);
     }
     60% {
-        transform: translate(2px, 2px);
+        transform: translate(0, 0);
     }
     80% {
-        transform: translate(2px, -2px);
+        transform: translate(0, 0);
     }
     100% {
         transform: translate(0);
@@ -1073,7 +1073,7 @@ input[type='color']::-webkit-color-swatch {
 
 .generate-btn:active {
     transform: translateY(0);
-    animation: glitch 0.2s ease;
+    /* Removed glitch animation */
 }
 
 .generate-btn:disabled {
