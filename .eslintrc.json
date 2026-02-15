@@ -1,0 +1,57 @@
+{
+  "env": {
+    "browser": true,
+    "es2020": true
+  },
+  "globals": {
+    "paper": "readonly",
+    "cv": "readonly",
+    "simplify": "readonly",
+    "ImageData": "readonly"
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-undef": "error",
+    "no-unused-vars": ["warn", { "args": "none", "varsIgnorePattern": "^_" }],
+    "no-redeclare": "error",
+    "no-dupe-keys": "error",
+    "no-duplicate-case": "error",
+    "no-unreachable": "error",
+    "eqeqeq": ["warn", "smart"],
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-debugger": "warn",
+    "no-console": "off",
+    "semi": ["warn", "always"],
+    "no-extra-semi": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["js/script.js"],
+      "globals": {
+        "LineRender": "readonly",
+        "Editor": "readonly",
+        "GPUProcessor": "readonly"
+      }
+    },
+    {
+      "files": ["js/LineRender.js"],
+      "globals": {
+        "GPUProcessor": "readonly"
+      },
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    },
+    {
+      "files": ["js/editor.js", "js/gpu.js"],
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    }
+  ]
+}

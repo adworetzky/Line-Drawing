@@ -68,7 +68,11 @@ const Editor = (function () {
             if (hitResult && hitResult.item) {
                 let item = hitResult.item;
                 // Walk up to a Path (skip compound paths, etc.)
-                while (item.parent && !(item instanceof paper.Path) && item.parent !== paper.project.activeLayer) {
+                while (
+                    item.parent &&
+                    !(item instanceof paper.Path) &&
+                    item.parent !== paper.project.activeLayer
+                ) {
                     item = item.parent;
                 }
                 selectedItem = item;
@@ -158,28 +162,44 @@ const Editor = (function () {
             this.setTool('select');
         },
 
-        get initialized() { return _initialized; },
+        get initialized() {
+            return _initialized;
+        },
 
         setTool: function (toolName) {
             currentTool = toolName;
             clearSelection();
             switch (toolName) {
-                case 'select': selectTool.activate(); break;
-                case 'pan': panTool.activate(); break;
-                case 'erase': eraseTool.activate(); break;
+                case 'select':
+                    selectTool.activate();
+                    break;
+                case 'pan':
+                    panTool.activate();
+                    break;
+                case 'erase':
+                    eraseTool.activate();
+                    break;
             }
             // Update cursor
             const canvas = document.getElementById('c-output');
             if (canvas) {
                 switch (toolName) {
-                    case 'select': canvas.style.cursor = 'crosshair'; break;
-                    case 'pan': canvas.style.cursor = 'grab'; break;
-                    case 'erase': canvas.style.cursor = 'pointer'; break;
+                    case 'select':
+                        canvas.style.cursor = 'crosshair';
+                        break;
+                    case 'pan':
+                        canvas.style.cursor = 'grab';
+                        break;
+                    case 'erase':
+                        canvas.style.cursor = 'pointer';
+                        break;
                 }
             }
         },
 
-        get currentTool() { return currentTool; },
+        get currentTool() {
+            return currentTool;
+        },
 
         saveSnapshot: function () {
             saveState();
@@ -203,8 +223,12 @@ const Editor = (function () {
             if (onHistoryChange) onHistoryChange();
         },
 
-        get canUndo() { return undoStack.length > 0; },
-        get canRedo() { return redoStack.length > 0; },
+        get canUndo() {
+            return undoStack.length > 0;
+        },
+        get canRedo() {
+            return redoStack.length > 0;
+        },
 
         clearHistory: function () {
             undoStack = [];
@@ -237,9 +261,13 @@ const Editor = (function () {
             if (onZoomChange) onZoomChange(zoomLevel);
         },
 
-        get zoomLevel() { return zoomLevel; },
+        get zoomLevel() {
+            return zoomLevel;
+        },
 
-        getSelection: function () { return selectedItem; },
+        getSelection: function () {
+            return selectedItem;
+        },
 
         deleteSelection: function () {
             if (selectedItem) {
@@ -253,9 +281,9 @@ const Editor = (function () {
         getStats: function () {
             let paths = 0;
             let points = 0;
-            paper.project.activeLayer.children.forEach(item => {
+            paper.project.activeLayer.children.forEach((item) => {
                 if (item instanceof paper.Group) {
-                    item.children.forEach(child => {
+                    item.children.forEach((child) => {
                         if (child instanceof paper.Path) {
                             paths++;
                             points += child.segments.length;

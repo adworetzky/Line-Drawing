@@ -1,0 +1,17 @@
+{
+  "name": "line-drawing-studio",
+  "version": "1.0.0",
+  "description": "Browser-based application that converts photographs into stylized line drawings",
+  "private": true,
+  "scripts": {
+    "lint": "eslint js/script.js js/LineRender.js js/editor.js js/gpu.js",
+    "lint:fix": "eslint --fix js/script.js js/LineRender.js js/editor.js js/gpu.js",
+    "format": "prettier --write '*.html' '*.css' 'js/script.js' 'js/LineRender.js' 'js/editor.js' 'js/gpu.js'",
+    "format:check": "prettier --check '*.html' '*.css' 'js/script.js' 'js/LineRender.js' 'js/editor.js' 'js/gpu.js'",
+    "serve": "npx serve . -l 8000"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.0"
+  }
+}
