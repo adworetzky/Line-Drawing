@@ -543,6 +543,169 @@
         URL.revokeObjectURL(url);
     }
 
+    function exportMultiColorLayers() {
+        if (!lastRenderResult || !lastRenderResult.groups) {
+            alert('Please generate a drawing first');
+            return;
+        }
+
+        // Only works for line mode with multiple threshold levels
+        var renderMode = readOption('opt-render-mode') || 'lines';
+        if (renderMode !== 'lines') {
+            alert('Multi-color layer export only works in Lines mode');
+            return;
+        }
+
+        var levels = readOption('opt-levels') || 1;
+        if (levels < 2) {
+            alert('Need at least 2 contour levels for multi-color export.\nIncrease "Contour Levels" and regenerate.');
+            return;
+        }
+
+        var dim = getCanvasDimensions();
+
+        // Split groups into 3 color layers (light/mid/dark)
+        var layerCount = Math.min(3, levels);
+        var groupsPerLayer = Math.ceil(lastRenderResult.groups.length / layerCount);
+
+        var colorNames = ['light', 'mid', 'dark'];
+        var colorValues = ['#808080', '#404040', '#000000']; // Gray to black
+
+        // Export each layer as separate SVG
+        for (var layer = 0; layer < layerCount; layer++) {
+            var startIdx = layer * groupsPerLayer;
+            var endIdx = Math.min(startIdx + groupsPerLayer, lastRenderResult.groups.length);
+
+            // Create temporary project for this layer
+            var tempProject = new paper.Project();
+
+            // Add groups for this layer
+            for (var i = startIdx; i < endIdx; i++) {
+                var group = lastRenderResult.groups[i];
+                if (group.visible) {
+                    var clonedGroup = group.clone();
+                    clonedGroup.strokeColor = colorValues[layer];
+                    tempProject.activeLayer.addChild(clonedGroup);
+                }
+            }
+
+            // Export layer as SVG
+            var svgNode = tempProject.exportSVG({ asString: false });
+            svgNode.setAttribute('width', dim.widthIn + 'in');
+            svgNode.setAttribute('height', dim.heightIn + 'in');
+            svgNode.setAttribute('viewBox', '0 0 ' + dim.widthPx + ' ' + dim.heightPx);
+
+            var serializer = new XMLSerializer();
+            var svgStr = serializer.serializeToString(svgNode);
+            var blob = new Blob([svgStr], { type: 'image/svg+xml' });
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            var wLabel = dim.widthIn.toString().replace('.', '_');
+            var hLabel = dim.heightIn.toString().replace('.', '_');
+            link.download = 'LineDrawing-' + wLabel + 'x' + hLabel + 'in-' + colorNames[layer] + '.svg';
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            // Clean up temp project
+            tempProject.remove();
+
+            // Restore original project as active
+            paper.project = paper.projects[0];
+        }
+
+        alert('Exported ' + layerCount + ' color layers:\n' + colorNames.slice(0, layerCount).join(', '));
+    }
+
+    function exportGCode() {
+        if (!lastRenderResult || !lastRenderResult.groups) {
+            alert('Please generate a drawing first');
+            return;
+        }
+
+        var dim = getCanvasDimensions();
+        var dpi = dim.dpi;
+
+        // G-code header
+        var gcode = [];
+        gcode.push('; Line Drawing Studio G-code Export');
+        gcode.push('; Dimensions: ' + dim.widthIn + '" x ' + dim.heightIn + '" @ ' + dpi + ' DPI');
+        gcode.push('; Generated: ' + new Date().toISOString());
+        gcode.push('');
+        gcode.push('G21 ; Set units to millimeters');
+        gcode.push('G90 ; Absolute positioning');
+        gcode.push('M3 S0 ; Pen up');
+        gcode.push('G0 Z5 ; Lift pen to safe height');
+        gcode.push('G0 X0 Y0 ; Move to origin');
+        gcode.push('');
+
+        var pathCount = 0;
+        var moveCount = 0;
+
+        // Convert pixels to mm (1 inch = 25.4mm)
+        function pxToMm(px) {
+            return ((px / dpi) * 25.4).toFixed(3);
+        }
+
+        // Process each group
+        lastRenderResult.groups.forEach(function (group) {
+            if (!group.visible) return;
+
+            gcode.push('; Group: ' + group.name);
+
+            group.children.forEach(function (path) {
+                if (!path.segments || path.segments.length === 0) return;
+
+                pathCount++;
+                gcode.push('; Path ' + pathCount);
+
+                // Move to start point (pen up)
+                var start = path.segments[0].point;
+                gcode.push('M3 S0 ; Pen up');
+                gcode.push('G0 X' + pxToMm(start.x) + ' Y' + pxToMm(start.y) + ' ; Move to start');
+                gcode.push('M3 S1000 ; Pen down');
+                moveCount++;
+
+                // Draw path segments (pen down)
+                for (var i = 1; i < path.segments.length; i++) {
+                    var pt = path.segments[i].point;
+                    gcode.push('G1 X' + pxToMm(pt.x) + ' Y' + pxToMm(pt.y) + ' F3000');
+                }
+
+                // Close path if needed
+                if (path.closed) {
+                    gcode.push('G1 X' + pxToMm(start.x) + ' Y' + pxToMm(start.y) + ' F3000 ; Close path');
+                }
+
+                gcode.push('M3 S0 ; Pen up');
+                gcode.push('');
+            });
+        });
+
+        // G-code footer
+        gcode.push('; Plotting complete');
+        gcode.push('M3 S0 ; Pen up');
+        gcode.push('G0 Z5 ; Lift pen');
+        gcode.push('G0 X0 Y0 ; Return to origin');
+        gcode.push('M2 ; End program');
+        gcode.push('');
+        gcode.push('; Statistics:');
+        gcode.push('; Total paths: ' + pathCount);
+        gcode.push('; Total moves: ' + moveCount);
+
+        // Download G-code file
+        var gcodeStr = gcode.join('\n');
+        var blob = new Blob([gcodeStr], { type: 'text/plain' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        var wLabel = dim.widthIn.toString().replace('.', '_');
+        var hLabel = dim.heightIn.toString().replace('.', '_');
+        link.download = 'LineDrawing-' + wLabel + 'x' + hLabel + 'in.gcode';
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
     // ── Panel toggle ──
     function setupPanelToggles() {
         document.querySelectorAll('.panel-title[data-toggle]').forEach(function (title) {
@@ -1039,6 +1202,8 @@
         $('btn-auto-threshold').addEventListener('click', autoThreshold);
         $('btn-export-png').addEventListener('click', exportPNG);
         $('btn-export-svg').addEventListener('click', exportSVG);
+        $('btn-export-gcode').addEventListener('click', exportGCode);
+        $('btn-export-layers').addEventListener('click', exportMultiColorLayers);
         $('btn-generate').addEventListener('click', function () {
             // Close mobile drawer if open
             $('sidebar-left').classList.remove('open');
