@@ -251,13 +251,30 @@ const Editor = (function () {
 
         fitToView: function () {
             const bounds = paper.project.activeLayer.bounds;
-            if (!bounds || bounds.width === 0) return;
             const view = paper.view;
-            const zw = view.viewSize.width / bounds.width;
-            const zh = view.viewSize.height / bounds.height;
-            zoomLevel = Math.min(zw, zh) * 0.9;
-            view.zoom = zoomLevel;
-            view.center = bounds.center;
+
+            // If there's no content, fit to canvas size
+            if (!bounds || bounds.width === 0) {
+                // Get canvas dimensions from the canvas element
+                const canvas = view.element;
+                const canvasArea = document.getElementById('canvas-area');
+                if (canvasArea) {
+                    const areaW = canvasArea.clientWidth - 40;
+                    const areaH = canvasArea.clientHeight - 40;
+                    const zw = areaW / canvas.width;
+                    const zh = areaH / canvas.height;
+                    zoomLevel = Math.min(zw, zh, 1);
+                    view.zoom = zoomLevel;
+                    view.center = new paper.Point(canvas.width / 2, canvas.height / 2);
+                }
+            } else {
+                // Fit to content bounds
+                const zw = view.viewSize.width / bounds.width;
+                const zh = view.viewSize.height / bounds.height;
+                zoomLevel = Math.min(zw, zh) * 0.9;
+                view.zoom = zoomLevel;
+                view.center = bounds.center;
+            }
             if (onZoomChange) onZoomChange(zoomLevel);
         },
 

@@ -1114,7 +1114,7 @@ input[type='color']::-webkit-color-swatch {
     flex: 1;
     background: var(--canvas-bg);
     position: relative;
-    overflow: hidden;
+    overflow: auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1122,7 +1122,6 @@ input[type='color']::-webkit-color-swatch {
 #canvas-wrapper {
     position: relative;
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
-    transition: transform 0.1s ease;
 }
 #c-input {
     display: block;

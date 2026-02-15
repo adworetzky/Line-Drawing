@@ -193,13 +193,13 @@
         cInput.style.width = cOutput.style.width || dim.widthPx + 'px';
         cInput.style.height = cOutput.style.height || dim.heightPx + 'px';
 
-        fitCanvasToView();
-
         Editor.init({
             onSelectionChange: updateSelectionInfo,
             onHistoryChange: updateHistoryButtons,
             onZoomChange: updateZoomLabel
         });
+
+        fitCanvasToView();
 
         $('btn-generate').disabled = false;
         applyBackground();
@@ -210,13 +210,25 @@
         const area = $('canvas-area');
         if (!wrapper || !area) return;
 
-        // Use our known dimensions (Paper.js may modify canvas.width for HiDPI)
-        var dim = getCanvasDimensions();
-        const areaW = area.clientWidth - 40;
-        const areaH = area.clientHeight - 40;
-        const scale = Math.min(areaW / dim.widthPx, areaH / dim.heightPx, 1);
-        wrapper.style.transform = 'scale(' + scale + ')';
+        // Remove CSS scaling - let Paper.js handle all zoom
+        wrapper.style.transform = 'none';
         wrapper.style.transformOrigin = 'center center';
+
+        // Use Paper.js zoom to fit the canvas to the view
+        if (Editor.initialized && paper.project.activeLayer) {
+            const areaW = area.clientWidth - 40;
+            const areaH = area.clientHeight - 40;
+            var dim = getCanvasDimensions();
+
+            // Calculate zoom level to fit canvas in viewport
+            const zoomX = areaW / dim.widthPx;
+            const zoomY = areaH / dim.heightPx;
+            const zoom = Math.min(zoomX, zoomY, 1);
+
+            Editor.zoomTo(zoom);
+            // Center the view
+            paper.view.center = new paper.Point(dim.widthPx / 2, dim.heightPx / 2);
+        }
     }
 
     // ── Background handling ──
@@ -251,10 +263,7 @@
 
         Editor.clearHistory();
 
-        // Reset view to default state so paths aren't offset by previous pan/zoom
-        var dim = getCanvasDimensions();
-        if (Editor.initialized) Editor.zoomTo(1);
-        paper.view.center = new paper.Point(dim.widthPx / 2, dim.heightPx / 2);
+        // Don't reset zoom/pan - preserve user's view state during regeneration
 
         // Collect options from UI
         const options = {
