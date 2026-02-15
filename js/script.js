@@ -10,6 +10,7 @@
     let processing = false;
     let lastRenderResult = null;
     let autoGenTimer = null;
+    let autoGenDelay = 300; // Adaptive delay for auto-generate
 
     // ── Presets ──
     const PRESETS = {
@@ -699,6 +700,7 @@
                 path.strokeWidth = baseWidth * (1 + variation * (1 - b / 255));
             }
         });
+        // Single draw after all paths updated (was inside loop - major performance hit)
         paper.view.draw();
     }
 
@@ -736,7 +738,15 @@
     function scheduleAutoGenerate() {
         if (!readOption('opt-auto-generate') || !imageLoaded || processing) return;
         clearTimeout(autoGenTimer);
-        autoGenTimer = setTimeout(generate, 600);
+
+        // Adaptive debounce: starts responsive (300ms), increases if user keeps adjusting
+        autoGenTimer = setTimeout(function () {
+            generate();
+            autoGenDelay = 300; // Reset after generation completes
+        }, autoGenDelay);
+
+        // Increase delay for next adjustment (max 600ms) to reduce churn during rapid changes
+        autoGenDelay = Math.min(600, autoGenDelay + 150);
     }
 
     function setupAutoGenerate() {

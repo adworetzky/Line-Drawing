@@ -404,18 +404,26 @@ const LineRender = (function () {
             var totalPaths = 0;
             var totalPoints = 0;
 
-            // Convert to grayscale ONCE for CPU path (avoids redundant conversion per level)
+            // Prepare source for processing
             var gray = null;
+            var gpuSourceTexture = null;
+
             if (!useGPU || !GPUProcessor.available) {
+                // CPU path: Convert to grayscale ONCE (avoids redundant conversion per level)
                 var src = cv.imread(inputCanvas);
                 gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
                 src.delete();
+            } else {
+                // GPU path: Upload source texture ONCE and reuse for all threshold levels
+                gpuSourceTexture = GPUProcessor.uploadSourceTexture(inputCanvas);
             }
 
             function processLevel(idx) {
                 if (idx >= thresholds.length) {
+                    // Clean up resources
                     if (gray) gray.delete();
+                    if (gpuSourceTexture) GPUProcessor.deleteTexture(gpuSourceTexture);
                     finalize();
                     return;
                 }
@@ -426,8 +434,14 @@ const LineRender = (function () {
                 }
 
                 var rawContours;
-                if (useGPU && GPUProcessor.available) {
-                    var imageData = GPUProcessor.threshold(inputCanvas, threshVal);
+                if (useGPU && GPUProcessor.available && gpuSourceTexture) {
+                    // Use cached texture instead of re-uploading source canvas
+                    var imageData = GPUProcessor.thresholdCached(
+                        gpuSourceTexture,
+                        threshVal,
+                        inputCanvas.width,
+                        inputCanvas.height
+                    );
                     rawContours = extractContoursGPU(imageData, minPoints);
                 } else {
                     rawContours = extractContoursFromGray(gray, threshVal, minPoints, edgeMethod);
@@ -459,9 +473,10 @@ const LineRender = (function () {
                 allGroups.push(group);
 
                 // Yield to event loop between levels to keep UI responsive
-                setTimeout(function () {
+                // Use requestAnimationFrame for smoother rendering and better frame sync
+                requestAnimationFrame(function () {
                     processLevel(idx + 1);
-                }, 0);
+                });
             }
 
             function finalize() {
