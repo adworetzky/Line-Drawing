@@ -260,9 +260,22 @@
                             Render Mode
                             <select id="opt-render-mode">
                                 <option value="lines">Lines (Contours)</option>
+                                <option value="blind-contour">Blind Contour (Single Line)</option>
                                 <option value="stippling">Stippling (Dots)</option>
                             </select>
                         </label>
+
+                        <!-- Blind contour options -->
+                        <div id="blind-contour-options" style="display: none">
+                            <label class="control-label">
+                                Simplification
+                                <div class="slider-row">
+                                    <input type="range" id="opt-blind-simplification" min="5" max="30" value="15" step="1" />
+                                    <span class="slider-value" data-for="opt-blind-simplification">15</span>
+                                </div>
+                                <small style="color: var(--text-tertiary); display: block; margin-top: 4px;">Higher = sketchier</small>
+                            </label>
+                        </div>
 
                         <!-- Stippling options (hidden by default) -->
                         <div id="stippling-options" style="display: none">

@@ -6,6 +6,141 @@ const LineRender = (function () {
     'use strict';
 
     /**
+     * Generate single-line blind contour drawing.
+     * One continuous path, no pen lifts, follows edges loosely.
+     * Aggressively simplified for sketchy, organic feel.
+     */
+    function renderBlindContour(options) {
+        var inputCanvas = options.inputCanvas;
+        var simplification = options.simplification || 15; // Aggressive simplification
+        var strokeColor = options.strokeColor || '#000000';
+        var strokeWidth = options.strokeWidth || 1;
+        var onProgress = options.onProgress;
+
+        return new Promise(function (resolve) {
+            var t0 = performance.now();
+            paper.project.clear();
+
+            if (onProgress) onProgress(20);
+
+            // Extract ONLY major contours (single threshold at mid-range)
+            var src = cv.imread(inputCanvas);
+            var gray = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+            src.delete();
+
+            var rawContours = extractContoursFromGray(gray, 128, 20, 'canny');
+            gray.delete();
+
+            if (onProgress) onProgress(40);
+
+            // Aggressively simplify to get sketch-like quality
+            var simplified = rawContours.map(function (pts) {
+                return simplifyPoints(pts, 'rdp', simplification);
+            });
+
+            if (onProgress) onProgress(60);
+
+            // Flatten all contours into single point array
+            var allPoints = [];
+            simplified.forEach(function (contour) {
+                contour.forEach(function (pt) {
+                    allPoints.push(new paper.Point(pt.x, pt.y));
+                });
+            });
+
+            if (allPoints.length === 0) {
+                resolve({
+                    groups: [],
+                    totalPaths: 0,
+                    totalPoints: 0,
+                    renderTimeMs: Math.round(performance.now() - t0)
+                });
+                return;
+            }
+
+            // Build single continuous path by connecting nearest points (TSP greedy)
+            var visited = new Array(allPoints.length).fill(false);
+            var path = new paper.Path();
+            path.strokeColor = strokeColor;
+            path.strokeWidth = strokeWidth;
+            path.strokeScaling = false;
+            path.strokeCap = 'round';
+            path.strokeJoin = 'round';
+
+            // Start from top-left corner
+            var currentIdx = 0;
+            var minDist = Infinity;
+            for (var i = 0; i < allPoints.length; i++) {
+                var d = allPoints[i].x + allPoints[i].y;
+                if (d < minDist) {
+                    minDist = d;
+                    currentIdx = i;
+                }
+            }
+
+            path.add(allPoints[currentIdx]);
+            visited[currentIdx] = true;
+
+            // Greedy nearest-neighbor to build ONE continuous line
+            for (var count = 1; count < allPoints.length; count++) {
+                var current = allPoints[currentIdx];
+                var nearestIdx = -1;
+                var nearestDist = Infinity;
+
+                for (var j = 0; j < allPoints.length; j++) {
+                    if (visited[j]) continue;
+                    var dx = allPoints[j].x - current.x;
+                    var dy = allPoints[j].y - current.y;
+                    var dist = dx * dx + dy * dy;
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestIdx = j;
+                    }
+                }
+
+                if (nearestIdx !== -1) {
+                    path.add(allPoints[nearestIdx]);
+                    visited[nearestIdx] = true;
+                    currentIdx = nearestIdx;
+                }
+
+                // Progress update every 100 points
+                if (count % 100 === 0 && onProgress) {
+                    onProgress(60 + Math.floor((count / allPoints.length) * 20));
+                }
+            }
+
+            if (onProgress) onProgress(85);
+
+            // Smooth the path for organic hand-drawn feel
+            path.smooth({ type: 'catmull-rom', factor: 0.5 });
+
+            // Clip to margins
+            var margin = (options.margin || 0) * (options.dpi || 96);
+            var group = new paper.Group([path]);
+            group.name = 'Blind Contour (Single Line)';
+
+            if (margin > 0) {
+                clipPathsToMargin([group], inputCanvas.width, inputCanvas.height, margin);
+            }
+
+            if (onProgress) onProgress(95);
+
+            paper.view.draw();
+
+            if (onProgress) onProgress(100);
+
+            resolve({
+                groups: [group],
+                totalPaths: 1,
+                totalPoints: path.segments.length,
+                renderTimeMs: Math.round(performance.now() - t0)
+            });
+        });
+    }
+
+    /**
      * Generate stippling (dots) based on image brightness.
      * Darker areas get more/bigger dots, lighter areas get fewer/smaller dots.
      * Popular technique for pen plotters.
@@ -824,6 +959,7 @@ const LineRender = (function () {
     return {
         render,
         renderStippling,
+        renderBlindContour,
         estimatePlotTime,
         simplifyPoints,
         buildThresholds,

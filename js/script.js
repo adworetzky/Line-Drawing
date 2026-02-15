@@ -358,6 +358,9 @@
             options.minDotSize = readOption('opt-min-dot-size');
             options.maxDotSize = readOption('opt-max-dot-size');
             options.distribution = readOption('opt-dot-distribution');
+        } else if (renderMode === 'blind-contour') {
+            options.simplification = readOption('opt-blind-simplification');
+            options.strokeWidth = readOption('opt-stroke-width');
         } else {
             options.levels = readOption('opt-levels');
             options.threshLow = readOption('opt-thresh-low');
@@ -377,9 +380,15 @@
             options.hatchBrightness = readOption('opt-hatch-brightness');
         }
 
-        // Call appropriate renderer - both are async and yield to keep UI responsive
-        var renderPromise =
-            renderMode === 'stippling' ? LineRender.renderStippling(options) : LineRender.render(options);
+        // Call appropriate renderer - all are async and yield to keep UI responsive
+        var renderPromise;
+        if (renderMode === 'stippling') {
+            renderPromise = LineRender.renderStippling(options);
+        } else if (renderMode === 'blind-contour') {
+            renderPromise = LineRender.renderBlindContour(options);
+        } else {
+            renderPromise = LineRender.render(options);
+        }
 
         renderPromise
             .then(function (result) {
@@ -1108,30 +1117,38 @@
         });
     }
 
-    // ── Render mode toggle (lines vs stippling) ──
+    // ── Render mode toggle (lines vs blind-contour vs stippling) ──
     function setupRenderModeToggle() {
         var modeSelect = $('opt-render-mode');
         var stipplingOpts = $('stippling-options');
-        var edgeLabel = $('edge-detection-label');
+        var blindContourOpts = $('blind-contour-options');
 
         function updateModeUI() {
             var mode = modeSelect.value;
+
+            // Hide all mode-specific options first
+            hide(stipplingOpts);
+            hide(blindContourOpts);
+
+            var lineOnlyPanels = document.querySelectorAll(
+                '#edge-detection-label, #panel-simplification, #panel-smoothing, #panel-hatching'
+            );
+
             if (mode === 'stippling') {
                 show(stipplingOpts);
-                // Hide line-specific options when in stippling mode
-                var lineOnlyPanels = document.querySelectorAll(
-                    '#edge-detection-label, #panel-simplification, #panel-smoothing, #panel-hatching'
-                );
+                // Hide line-specific options
+                lineOnlyPanels.forEach(function (el) {
+                    if (el) hide(el);
+                });
+            } else if (mode === 'blind-contour') {
+                show(blindContourOpts);
+                // Hide line-specific options (blind contour has its own simplification)
                 lineOnlyPanels.forEach(function (el) {
                     if (el) hide(el);
                 });
             } else {
-                hide(stipplingOpts);
-                // Show line-specific options
-                var lineOnlyPanels2 = document.querySelectorAll(
-                    '#edge-detection-label, #panel-simplification, #panel-smoothing, #panel-hatching'
-                );
-                lineOnlyPanels2.forEach(function (el) {
+                // Lines mode - show all line-specific options
+                lineOnlyPanels.forEach(function (el) {
                     if (el) show(el);
                 });
             }
