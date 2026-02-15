@@ -805,6 +805,49 @@
         });
     }
 
+    // ── Theme Switcher ──
+    function setupThemeSwitcher() {
+        const themeButtons = document.querySelectorAll('.theme-btn');
+        const currentTheme = localStorage.getItem('edex-theme') || 'tron';
+
+        // Apply saved theme on load
+        if (currentTheme !== 'tron') {
+            document.body.className = 'theme-' + currentTheme;
+        }
+
+        // Update active button
+        themeButtons.forEach(function (btn) {
+            if (btn.dataset.theme === currentTheme) {
+                btn.classList.add('active');
+            }
+
+            btn.addEventListener('click', function () {
+                const theme = this.dataset.theme;
+
+                // Remove all theme classes
+                document.body.className = '';
+                if (theme !== 'tron') {
+                    document.body.classList.add('theme-' + theme);
+                }
+
+                // Update active state
+                themeButtons.forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                this.classList.add('active');
+
+                // Save preference
+                localStorage.setItem('edex-theme', theme);
+
+                // Add glitch effect to body
+                document.body.style.animation = 'glitch 0.3s ease';
+                setTimeout(function () {
+                    document.body.style.animation = '';
+                }, 300);
+            });
+        });
+    }
+
     // ── Dimension controls ──
     function setupDimensionControls() {
         var widthIn = $('opt-width-in');
@@ -903,6 +946,7 @@
         setupPresets();
         setupToolbar();
         setupKeyboard();
+        setupThemeSwitcher();
         setupDimensionControls();
         setupMobileSidebar();
         setupAutoGenerate();

@@ -51,7 +51,7 @@
                         <line x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                 </button>
-                <h1 class="app-title">Line Drawing Studio</h1>
+                <h1 class="app-title chromatic-text">Line Drawing Studio</h1>
             </div>
             <div class="toolbar-center">
                 <div class="tool-group">
@@ -457,6 +457,36 @@
                     <h3 class="panel-title" data-toggle="panel-style">Style</h3>
                     <div class="panel-body" id="panel-style">
                         <label class="control-label">
+                            UI Theme
+                            <div class="theme-selector">
+                                <button
+                                    class="theme-btn theme-tron active"
+                                    data-theme="tron"
+                                    title="TRON (Cyan/Green)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-blade"
+                                    data-theme="blade"
+                                    title="Blade Runner (Orange)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-matrix"
+                                    data-theme="matrix"
+                                    title="Matrix (Green)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-cyberpunk"
+                                    data-theme="cyberpunk"
+                                    title="Cyberpunk (Pink)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-ice"
+                                    data-theme="ice"
+                                    title="Ice (Blue/Cyan)"
+                                ></button>
+                            </div>
+                        </label>
+                        <label class="control-label">
                             Stroke Width
                             <div class="slider-row">
                                 <input
@@ -712,5 +742,10 @@
         </div>
 
         <img id="source-img" crossorigin="Anonymous" style="display: none" />
+
+        <!-- Decorative data streams -->
+        <div class="data-stream" style="right: 15%; animation-delay: 0s"></div>
+        <div class="data-stream" style="right: 50%; animation-delay: 1s"></div>
+        <div class="data-stream" style="right: 85%; animation-delay: 2s"></div>
     </body>
 </html>
