@@ -145,22 +145,23 @@
     function validateImageSize(imgElement, file) {
         return new Promise(function (resolve, reject) {
             // Check file size first (before full load)
-            var MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+            var MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB (handles 48MP iPhone Pro photos)
             if (file && file.size > MAX_FILE_SIZE) {
                 reject({
                     type: 'file_size',
                     message:
                         'File too large (' +
                         (file.size / 1024 / 1024).toFixed(1) +
-                        'MB). Maximum: 10MB',
+                        'MB). Maximum: 25MB',
                     size: file.size
                 });
                 return;
             }
 
             // Check dimensions after image loads
-            var MAX_DIMENSION = 4000;
-            var MAX_PIXELS = 4000 * 4000;
+            // Supports iPhone (3024x4032 = 12MP), iPhone Pro (8064x6048 = 48MP), and DSLRs
+            var MAX_DIMENSION = 8192; // 8K images
+            var MAX_PIXELS = 50 * 1000000; // 50 megapixels
 
             var checkDimensions = function () {
                 var pixels = imgElement.naturalWidth * imgElement.naturalHeight;
