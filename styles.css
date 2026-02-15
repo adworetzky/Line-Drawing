@@ -137,6 +137,9 @@ body {
     background: var(--bg-primary);
     overflow: hidden;
     user-select: none;
+    /* Mobile optimizations */
+    overscroll-behavior: none; /* Prevent iOS rubber band effect */
+    -webkit-tap-highlight-color: transparent; /* Remove iOS tap highlight */
     position: relative;
 }
 
@@ -1118,6 +1121,8 @@ input[type='color']::-webkit-color-swatch {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Enable smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
 }
 #canvas-wrapper {
     position: relative;
@@ -1142,6 +1147,11 @@ input[type='color']::-webkit-color-swatch {
     z-index: 1;
     background: #fff;
     cursor: crosshair;
+    /* Prevent browser touch gestures from interfering with Paper.js tools */
+    touch-action: none;
+    /* Prevent accidental text selection during touch interactions */
+    -webkit-user-select: none;
+    user-select: none;
 }
 #c-output.paper-bg {
     background-image: url(./assets/ivory-off-white-paper-texture.jpg);
@@ -1597,13 +1607,21 @@ input[type='color']::-webkit-color-swatch {
     }
 
     /* Touch-friendly controls */
+    input[type='range'] {
+        height: 28px; /* Larger tap target */
+        cursor: pointer;
+    }
     input[type='range']::-webkit-slider-thumb {
         width: 20px;
         height: 20px;
     }
+    input[type='range']::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+    }
     .tool-btn {
-        width: 40px;
-        height: 40px;
+        width: 44px; /* iOS recommended minimum: 44x44pt */
+        height: 44px;
     }
     select {
         padding: 8px;
