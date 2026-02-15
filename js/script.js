@@ -263,6 +263,11 @@
         cInput.style.width = cOutput.style.width || dim.widthPx + 'px';
         cInput.style.height = cOutput.style.height || dim.heightPx + 'px';
 
+        // Ensure canvas wrapper maintains aspect ratio
+        var wrapper = $('canvas-wrapper');
+        var aspectRatio = dim.widthPx / dim.heightPx;
+        wrapper.style.aspectRatio = aspectRatio.toFixed(4);
+
         Editor.init({
             onSelectionChange: updateSelectionInfo,
             onHistoryChange: updateHistoryButtons,
@@ -305,14 +310,12 @@
     function applyBackground() {
         const cOutput = $('c-output');
         const bg = readOption('opt-background');
-        cOutput.classList.remove('paper-bg');
         cOutput.style.backgroundColor = '';
 
         switch (bg) {
             case 'paper':
-                cOutput.classList.add('paper-bg');
-                break;
             case 'white':
+                // Paper texture removed for plotter compatibility
                 cOutput.style.backgroundColor = '#ffffff';
                 break;
             case 'transparent':
@@ -336,6 +339,7 @@
         // Don't reset zoom/pan - preserve user's view state during regeneration
 
         // Collect options from UI
+        var dim = getCanvasDimensions();
         const options = {
             inputCanvas: $('c-input'),
             levels: readOption('opt-levels'),
@@ -355,6 +359,8 @@
             hatchSpacing: readOption('opt-hatch-spacing'),
             hatchAngle: readOption('opt-hatch-angle'),
             hatchBrightness: readOption('opt-hatch-brightness'),
+            margin: readOption('opt-margin'),
+            dpi: dim.dpi,
             onProgress: function (pct) {
                 setProgress(pct, 'Processing... ' + pct + '%');
             }

@@ -1153,10 +1153,6 @@ input[type='color']::-webkit-color-swatch {
     -webkit-user-select: none;
     user-select: none;
 }
-#c-output.paper-bg {
-    background-image: url(./assets/ivory-off-white-paper-texture.jpg);
-    background-size: cover;
-}
 
 /* Empty state */
 #empty-state {

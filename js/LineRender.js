@@ -319,6 +319,58 @@ const LineRender = (function () {
     }
 
     /**
+     * Clip all paths to stay within margin bounds.
+     * Critical for pen plotters - prevents drawing outside the paper boundaries.
+     * Uses Paper.js clipping with a rectangular clipping path.
+     */
+    function clipPathsToMargin(groups, canvasWidth, canvasHeight, margin) {
+        if (margin <= 0) return; // No clipping needed if no margin
+
+        // Create clipping rectangle (canvas bounds minus margin)
+        var clipRect = new paper.Path.Rectangle({
+            point: [margin, margin],
+            size: [canvasWidth - margin * 2, canvasHeight - margin * 2]
+        });
+
+        groups.forEach(function (group) {
+            var paths = group.removeChildren();
+            paths.forEach(function (path) {
+                if (!path || !path.bounds) return;
+
+                // Intersect path with clipping rectangle
+                var clipped = path.intersect(clipRect, { insert: false });
+
+                // If intersection produces valid geometry, use it
+                if (clipped && clipped.className) {
+                    if (clipped.className === 'CompoundPath') {
+                        // Handle compound paths (multiple segments)
+                        clipped.children.forEach(function (child) {
+                            if (child.length > 0) {
+                                child.strokeWidth = path.strokeWidth;
+                                child.strokeColor = path.strokeColor;
+                                child.strokeScaling = path.strokeScaling;
+                                group.addChild(child);
+                            }
+                        });
+                    } else if (clipped.className === 'Path' && clipped.length > 0) {
+                        // Single path result
+                        clipped.strokeWidth = path.strokeWidth;
+                        clipped.strokeColor = path.strokeColor;
+                        clipped.strokeScaling = path.strokeScaling;
+                        group.addChild(clipped);
+                    }
+                    clipped.remove();
+                } else {
+                    // Path fully within bounds - keep original
+                    group.addChild(path);
+                }
+            });
+        });
+
+        clipRect.remove();
+    }
+
+    /**
      * Sort paths within each group using greedy nearest-neighbor to minimize
      * pen travel distance (important for pen plotters).
      */
@@ -512,6 +564,12 @@ const LineRender = (function () {
                 }
 
                 if (onProgress) onProgress(92);
+
+                // Clip all paths to margin bounds (critical for plotters!)
+                var margin = (options.margin || 0) * (options.dpi || 96);
+                clipPathsToMargin(allGroups, inputCanvas.width, inputCanvas.height, margin);
+
+                if (onProgress) onProgress(95);
 
                 // Sort paths within each group to minimize pen travel distance
                 sortPathsForPlotter(allGroups);
