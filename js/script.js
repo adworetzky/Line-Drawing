@@ -662,8 +662,9 @@
         var colorNames = ['light', 'mid', 'dark'];
         var colorValues = ['#808080', '#404040', '#000000']; // Gray to black
 
-        // Export each layer as separate SVG
-        for (var layer = 0; layer < layerCount; layer++) {
+        // Export each layer as separate SVG with staggered downloads
+        // (mobile browsers block rapid sequential downloads)
+        function exportLayer(layer) {
             var startIdx = layer * groupsPerLayer;
             var endIdx = Math.min(startIdx + groupsPerLayer, lastRenderResult.groups.length);
 
@@ -705,7 +706,17 @@
             paper.project = paper.projects[0];
         }
 
-        alert('Exported ' + layerCount + ' color layers:\n' + colorNames.slice(0, layerCount).join(', '));
+        // Stagger downloads with 500ms delay to avoid mobile browser blocking
+        for (var layer = 0; layer < layerCount; layer++) {
+            (function (l) {
+                setTimeout(function () {
+                    exportLayer(l);
+                    if (l === layerCount - 1) {
+                        alert('Exported ' + layerCount + ' color layers:\n' + colorNames.slice(0, layerCount).join(', '));
+                    }
+                }, l * 500);
+            })(layer);
+        }
     }
 
     function exportGCode() {
@@ -1361,6 +1372,12 @@
         });
 
         overlay.addEventListener('click', function () {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('visible');
+        });
+
+        // Close button inside sidebar (visible at 480px when sidebar is full-width)
+        $('btn-sidebar-close').addEventListener('click', function () {
             sidebar.classList.remove('open');
             overlay.classList.remove('visible');
         });
