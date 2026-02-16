@@ -278,11 +278,27 @@ const Editor = (function () {
                         initialPinchZoom = null;
                         pinchCenter = null;
                     } else if (e.touches.length === 1 && isPinching) {
-                        // One finger lifted during pinch, transition to single-touch
+                        // One finger lifted during pinch — transition to single-touch mode
                         isPinching = false;
                         initialPinchDistance = null;
                         initialPinchZoom = null;
                         pinchCenter = null;
+
+                        // Activate single-touch so the remaining finger can use tools
+                        isTouching = true;
+                        const remainingTouch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const point = new paper.Point(
+                            remainingTouch.clientX - rect.left,
+                            remainingTouch.clientY - rect.top
+                        );
+                        touchStartPoint = paper.view.viewToProject(point);
+
+                        // Trigger tool's mouseDown for the remaining finger
+                        const activeTool = paper.tools.find((t) => t === paper.tool);
+                        if (activeTool && activeTool.onMouseDown) {
+                            activeTool.onMouseDown({ point: touchStartPoint });
+                        }
                     }
                 },
                 { passive: false }

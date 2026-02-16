@@ -137,11 +137,9 @@ body {
     background: var(--bg-primary);
     overflow: hidden;
     user-select: none;
-    /* Prevent pull-to-refresh and overscroll on mobile */
-    overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
     /* Mobile optimizations */
-    overscroll-behavior: none; /* Prevent iOS rubber band effect */
+    overscroll-behavior: none; /* Prevent pull-to-refresh and rubber band effect */
+    -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent; /* Remove iOS tap highlight */
     position: relative;
 }
@@ -1613,6 +1611,25 @@ input[type='color']::-webkit-color-swatch {
     display: none;
 }
 
+/* Close button inside sidebar (for full-width mobile) */
+.sidebar-close-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 260;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+}
+
 /* === Responsive: hide right sidebar on narrow screens === */
 @media (max-width: 1100px) {
     #sidebar-right {
@@ -1654,6 +1671,16 @@ input[type='color']::-webkit-color-swatch {
         gap: 4px;
     }
     .toolbar-center {
+        display: flex;
+        gap: 2px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Hide less critical groups on mobile to save space */
+    .toolbar-center .toolbar-separator {
+        display: none;
+    }
+    .toolbar-center .zoom-label {
         display: none;
     }
     .app-title {
@@ -1738,6 +1765,14 @@ input[type='color']::-webkit-color-swatch {
         font-size: 13px;
     }
 
+    /* "Change" button always visible on touch devices */
+    .source-preview .small-btn {
+        opacity: 1;
+        padding: 8px 16px;
+        font-size: 13px;
+        min-height: 44px;
+    }
+
     /* Export buttons compact but still tappable */
     .export-btn {
         padding: 10px 12px;
@@ -1775,6 +1810,18 @@ input[type='color']::-webkit-color-swatch {
     #sidebar-left {
         width: 100vw;
         min-width: 100vw;
+    }
+
+    /* Close button for full-width sidebar (overlay is hidden behind it) */
+    .sidebar-close-btn {
+        display: flex;
+    }
+
+    /* Hide zoom buttons on very small screens — pinch-to-zoom available */
+    #btn-zoom-in,
+    #btn-zoom-out,
+    #btn-zoom-fit {
+        display: none;
     }
 
     /* Larger touch targets on small screens */
