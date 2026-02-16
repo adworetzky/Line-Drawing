@@ -988,6 +988,147 @@
         generate();
     }
 
+    // ── Auto Settings: comprehensive parameter optimization ──
+    function autoSettings() {
+        if (!imageLoaded) return;
+
+        var cInput = $('c-input');
+        var w = cInput.width;
+        var h = cInput.height;
+        if (!w || !h) return;
+
+        var ctx = cInput.getContext('2d');
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var pixels = imageData.data;
+
+        // Build brightness histogram, skip near-white background/margins
+        var histogram = new Uint32Array(256);
+        var contentPixels = 0;
+        var totalEdgeStrength = 0;
+
+        for (var i = 0; i < pixels.length; i += 4) {
+            var lum = (pixels[i] * 77 + pixels[i + 1] * 150 + pixels[i + 2] * 29) >> 8;
+            if (lum < 248) {
+                histogram[lum]++;
+                contentPixels++;
+
+                // Estimate edge strength (simple gradient)
+                if (i > w * 4 && i < pixels.length - w * 4) {
+                    var nextLum = (pixels[i + 4] * 77 + pixels[i + 5] * 150 + pixels[i + 6] * 29) >> 8;
+                    totalEdgeStrength += Math.abs(nextLum - lum);
+                }
+            }
+        }
+
+        if (contentPixels < 100) return;
+
+        var avgEdgeStrength = totalEdgeStrength / contentPixels;
+
+        // Find brightness percentiles
+        var cumulative = 0;
+        var p5 = 0,
+            p95 = 0,
+            p50 = 0;
+        for (var b = 0; b < 256; b++) {
+            cumulative += histogram[b];
+            var pct = cumulative / contentPixels;
+            if (!p5 && pct >= 0.05) p5 = b;
+            if (!p50 && pct >= 0.5) p50 = b;
+            if (!p95 && pct >= 0.95) p95 = b;
+        }
+
+        // Calculate image characteristics
+        var threshLow = Math.max(10, p5);
+        var threshHigh = Math.min(240, p95);
+        var range = threshHigh - threshLow;
+        var resolution = Math.sqrt(w * h);
+        var isHighRes = resolution > 2000;
+        var isLowContrast = range < 80;
+        var hasStrongEdges = avgEdgeStrength > 15;
+
+        // Ensure minimum usable range
+        if (range < 40) {
+            threshLow = Math.max(10, threshLow - 20);
+            threshHigh = Math.min(240, threshHigh + 20);
+            range = threshHigh - threshLow;
+        }
+
+        // Clamp thresholds
+        threshLow = Math.max(0, Math.min(254, Math.round(threshLow)));
+        threshHigh = Math.max(1, Math.min(255, Math.round(threshHigh)));
+
+        // ── THRESHOLD & LEVELS ──
+        var levels = Math.max(3, Math.min(15, Math.round(range / 18)));
+
+        // ── MIN POINTS (noise filtering) ──
+        var minPoints = isHighRes ? 4 : 3;
+
+        // ── EDGE METHOD ──
+        // Use Canny for technical images with strong edges, threshold for artistic
+        var edgeMethod = hasStrongEdges && !isLowContrast ? 'canny' : 'threshold';
+
+        // ── SIMPLIFICATION ──
+        // Higher tolerance for high-res images to reduce path count
+        // Lower tolerance for detailed work
+        var tolerance;
+        if (isHighRes) {
+            tolerance = hasStrongEdges ? 2.5 : 3.5;
+        } else {
+            tolerance = hasStrongEdges ? 1.5 : 2.5;
+        }
+
+        // ── SMOOTHING ──
+        // Use Catmull-Rom for organic images, none for technical/high-edge images
+        var smoothType = hasStrongEdges ? 'none' : 'catmull-rom';
+        var tension = hasStrongEdges ? 0 : -0.5;
+
+        // ── STROKE WIDTH ──
+        // Scale with resolution: smaller for high-res, larger for low-res
+        var strokeWidth;
+        if (isHighRes) {
+            strokeWidth = 0.5;
+        } else if (resolution > 1200) {
+            strokeWidth = 0.7;
+        } else {
+            strokeWidth = 1.0;
+        }
+
+        // ── HATCHING ──
+        // Enable hatching for low-contrast images to add visual interest
+        var hatchEnabled = isLowContrast && range > 50;
+        var hatchType = 'cross';
+        var hatchSpacing = isHighRes ? 15 : 20;
+        var hatchAngle = 45;
+        var hatchBrightness = Math.round(p50);
+
+        // ── WEIGHT VARIATION ──
+        // Add variation for organic images, keep uniform for technical
+        var weightVar = hasStrongEdges ? 0.2 : 0.4;
+
+        // Apply all settings to UI
+        setControlValue('opt-thresh-low', threshLow);
+        setControlValue('opt-thresh-high', threshHigh);
+        setControlValue('opt-levels', levels);
+        setControlValue('opt-min-points', minPoints);
+        setControlValue('opt-edge-method', edgeMethod);
+        setControlValue('opt-simplify-method', 'rdp');
+        setControlValue('opt-tolerance', tolerance);
+        setControlValue('opt-smooth-type', smoothType);
+        setControlValue('opt-tension', tension);
+        setControlValue('opt-stroke-width', strokeWidth);
+        setControlValue('opt-hatch-enable', hatchEnabled);
+        setControlValue('opt-hatch-type', hatchType);
+        setControlValue('opt-hatch-spacing', hatchSpacing);
+        setControlValue('opt-hatch-angle', hatchAngle);
+        setControlValue('opt-hatch-brightness', hatchBrightness);
+        setControlValue('opt-weight-var', weightVar);
+
+        $('opt-preset').value = 'custom';
+
+        // Generate immediately
+        generate();
+    }
+
     // ── Weight variation (brightness-adaptive stroke width) ──
     function applyWeightVariation(result, inputCanvas, baseWidth, variation) {
         var w = inputCanvas.width;
@@ -1335,6 +1476,7 @@
         });
 
         $('btn-auto-threshold').addEventListener('click', autoThreshold);
+        $('btn-auto-settings').addEventListener('click', autoSettings);
         $('btn-export-png').addEventListener('click', exportPNG);
         $('btn-export-svg').addEventListener('click', exportSVG);
         $('btn-export-gcode').addEventListener('click', exportGCode);
