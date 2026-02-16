@@ -58,10 +58,11 @@ const Editor = (function () {
 
         let dragOffset = null;
 
+        // Mouse handlers
         selectTool.onMouseDown = function (event) {
             const hitResult = paper.project.hitTest(event.point, {
                 stroke: true,
-                tolerance: 8,
+                tolerance: 12, // Larger for touch
                 fill: false
             });
             clearSelection();
@@ -127,7 +128,7 @@ const Editor = (function () {
         eraseTool.onMouseDown = function (event) {
             const hitResult = paper.project.hitTest(event.point, {
                 stroke: true,
-                tolerance: 8,
+                tolerance: 12, // Larger for touch
                 fill: false
             });
             if (hitResult && hitResult.item) {
@@ -140,7 +141,7 @@ const Editor = (function () {
         eraseTool.onMouseDrag = function (event) {
             const hitResult = paper.project.hitTest(event.point, {
                 stroke: true,
-                tolerance: 8,
+                tolerance: 12, // Larger for touch
                 fill: false
             });
             if (hitResult && hitResult.item) {
@@ -148,16 +149,181 @@ const Editor = (function () {
                 paper.view.draw();
             }
         };
+
+        // Add native touch event support for better mobile UX
+        // Paper.js doesn't handle touch well by default
+        const canvas = document.getElementById('c-output');
+        if (canvas) {
+            // Prevent default touch behaviors
+            canvas.style.touchAction = 'none';
+
+            // Touch event handlers
+            let touchStartPoint = null;
+            let isTouching = false;
+            let isPinching = false;
+            let initialPinchDistance = null;
+            let initialPinchZoom = null;
+            let pinchCenter = null;
+
+            // Calculate distance between two touches
+            function getTouchDistance(touch1, touch2) {
+                const dx = touch2.clientX - touch1.clientX;
+                const dy = touch2.clientY - touch1.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // Calculate midpoint between two touches
+            function getTouchMidpoint(touch1, touch2, rect) {
+                const x = (touch1.clientX + touch2.clientX) / 2 - rect.left;
+                const y = (touch1.clientY + touch2.clientY) / 2 - rect.top;
+                return new paper.Point(x, y);
+            }
+
+            canvas.addEventListener(
+                'touchstart',
+                function (e) {
+                    e.preventDefault();
+
+                    if (e.touches.length === 2) {
+                        // Two-finger pinch gesture
+                        isPinching = true;
+                        isTouching = false;
+                        initialPinchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                        initialPinchZoom = zoomLevel;
+                        const rect = canvas.getBoundingClientRect();
+                        pinchCenter = paper.view.viewToProject(
+                            getTouchMidpoint(e.touches[0], e.touches[1], rect)
+                        );
+                    } else if (e.touches.length === 1) {
+                        // Single-finger tool gesture
+                        isTouching = true;
+                        isPinching = false;
+                        const touch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const point = new paper.Point(touch.clientX - rect.left, touch.clientY - rect.top);
+                        touchStartPoint = paper.view.viewToProject(point);
+
+                        // Trigger appropriate tool handler
+                        const activeTool = paper.tools.find((t) => t === paper.tool);
+                        if (activeTool && activeTool.onMouseDown) {
+                            activeTool.onMouseDown({ point: touchStartPoint });
+                        }
+                    }
+                },
+                { passive: false }
+            );
+
+            canvas.addEventListener(
+                'touchmove',
+                function (e) {
+                    e.preventDefault();
+
+                    if (isPinching && e.touches.length === 2) {
+                        // Pinch-to-zoom
+                        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                        const scale = currentDistance / initialPinchDistance;
+                        const newZoom = initialPinchZoom * scale;
+
+                        // Apply zoom clamped to min/max
+                        const clampedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+
+                        // Zoom centered on pinch center point
+                        const oldZoom = zoomLevel;
+                        zoomLevel = clampedZoom;
+
+                        const beta = oldZoom / zoomLevel;
+                        const offset = pinchCenter.subtract(paper.view.center);
+                        const newCenter = pinchCenter.subtract(offset.multiply(beta));
+
+                        paper.view.zoom = zoomLevel;
+                        paper.view.center = newCenter;
+
+                        if (onZoomChange) onZoomChange(zoomLevel);
+                    } else if (isTouching && e.touches.length === 1) {
+                        // Single-finger drag
+                        const touch = e.touches[0];
+                        const rect = canvas.getBoundingClientRect();
+                        const point = new paper.Point(touch.clientX - rect.left, touch.clientY - rect.top);
+                        const touchPoint = paper.view.viewToProject(point);
+
+                        // Trigger appropriate tool handler
+                        const activeTool = paper.tools.find((t) => t === paper.tool);
+                        if (activeTool && activeTool.onMouseDrag) {
+                            activeTool.onMouseDrag({ point: touchPoint });
+                        }
+                        paper.view.draw();
+                    }
+                },
+                { passive: false }
+            );
+
+            canvas.addEventListener(
+                'touchend',
+                function (e) {
+                    e.preventDefault();
+
+                    if (e.touches.length === 0) {
+                        // All fingers lifted
+                        if (isTouching) {
+                            // End single-finger gesture
+                            const activeTool = paper.tools.find((t) => t === paper.tool);
+                            if (activeTool && activeTool.onMouseUp) {
+                                activeTool.onMouseUp();
+                            }
+                        }
+                        isTouching = false;
+                        isPinching = false;
+                        touchStartPoint = null;
+                        initialPinchDistance = null;
+                        initialPinchZoom = null;
+                        pinchCenter = null;
+                    } else if (e.touches.length === 1 && isPinching) {
+                        // One finger lifted during pinch, transition to single-touch
+                        isPinching = false;
+                        initialPinchDistance = null;
+                        initialPinchZoom = null;
+                        pinchCenter = null;
+                    }
+                },
+                { passive: false }
+            );
+
+            canvas.addEventListener(
+                'touchcancel',
+                function (e) {
+                    e.preventDefault();
+                    isTouching = false;
+                    isPinching = false;
+                    touchStartPoint = null;
+                    initialPinchDistance = null;
+                    initialPinchZoom = null;
+                    pinchCenter = null;
+                },
+                { passive: false }
+            );
+        }
     }
 
     return {
         init: function (callbacks) {
+            // Only initialize once - prevent duplicate event listeners
+            if (_initialized) {
+                // Just update callbacks if already initialized
+                if (callbacks) {
+                    onSelectionChange = callbacks.onSelectionChange || onSelectionChange;
+                    onHistoryChange = callbacks.onHistoryChange || onHistoryChange;
+                    onZoomChange = callbacks.onZoomChange || onZoomChange;
+                }
+                return;
+            }
+
             if (callbacks) {
                 onSelectionChange = callbacks.onSelectionChange || null;
                 onHistoryChange = callbacks.onHistoryChange || null;
                 onZoomChange = callbacks.onZoomChange || null;
             }
             initTools();
+            this.enableMouseWheelZoom();
             _initialized = true;
             this.setTool('select');
         },
@@ -236,10 +402,23 @@ const Editor = (function () {
             if (onHistoryChange) onHistoryChange();
         },
 
-        // Zoom
+        // Zoom - keeps the artboard centered
         zoom: function (factor) {
+            const oldZoom = zoomLevel;
             zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * factor));
+
+            // Calculate the canvas center (artboard center)
+            const canvas = paper.view.element;
+            const canvasCenter = new paper.Point(canvas.width / 2, canvas.height / 2);
+
+            // Zoom while keeping canvas center in view
+            const beta = oldZoom / zoomLevel;
+            const offset = canvasCenter.subtract(paper.view.center);
+            const newCenter = canvasCenter.subtract(offset.multiply(beta));
+
             paper.view.zoom = zoomLevel;
+            paper.view.center = newCenter;
+
             if (onZoomChange) onZoomChange(zoomLevel);
         },
 
@@ -251,13 +430,30 @@ const Editor = (function () {
 
         fitToView: function () {
             const bounds = paper.project.activeLayer.bounds;
-            if (!bounds || bounds.width === 0) return;
             const view = paper.view;
-            const zw = view.viewSize.width / bounds.width;
-            const zh = view.viewSize.height / bounds.height;
-            zoomLevel = Math.min(zw, zh) * 0.9;
-            view.zoom = zoomLevel;
-            view.center = bounds.center;
+
+            // If there's no content, fit to canvas size
+            if (!bounds || bounds.width === 0) {
+                // Get canvas dimensions from the canvas element
+                const canvas = view.element;
+                const canvasArea = document.getElementById('canvas-area');
+                if (canvasArea) {
+                    const areaW = canvasArea.clientWidth - 40;
+                    const areaH = canvasArea.clientHeight - 40;
+                    const zw = areaW / canvas.width;
+                    const zh = areaH / canvas.height;
+                    zoomLevel = Math.min(zw, zh, 1);
+                    view.zoom = zoomLevel;
+                    view.center = new paper.Point(canvas.width / 2, canvas.height / 2);
+                }
+            } else {
+                // Fit to content bounds
+                const zw = view.viewSize.width / bounds.width;
+                const zh = view.viewSize.height / bounds.height;
+                zoomLevel = Math.min(zw, zh) * 0.9;
+                view.zoom = zoomLevel;
+                view.center = bounds.center;
+            }
             if (onZoomChange) onZoomChange(zoomLevel);
         },
 
@@ -295,6 +491,40 @@ const Editor = (function () {
                 }
             });
             return { paths, points };
+        },
+
+        // Enable mouse wheel zoom
+        enableMouseWheelZoom: function () {
+            const canvas = document.getElementById('c-output');
+            if (!canvas) return;
+
+            canvas.addEventListener(
+                'wheel',
+                function (e) {
+                    e.preventDefault();
+                    const delta = e.deltaY;
+                    const zoomFactor = delta > 0 ? 0.9 : 1.1;
+
+                    // Get mouse position in view coordinates
+                    const rect = canvas.getBoundingClientRect();
+                    const mousePoint = new paper.Point(e.clientX - rect.left, e.clientY - rect.top);
+                    const viewPoint = paper.view.viewToProject(mousePoint);
+
+                    // Zoom centered on mouse position
+                    const oldZoom = zoomLevel;
+                    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * zoomFactor));
+
+                    const beta = oldZoom / zoomLevel;
+                    const offset = viewPoint.subtract(paper.view.center);
+                    const newCenter = viewPoint.subtract(offset.multiply(beta));
+
+                    paper.view.zoom = zoomLevel;
+                    paper.view.center = newCenter;
+
+                    if (onZoomChange) onZoomChange(zoomLevel);
+                },
+                { passive: false }
+            );
         }
     };
 })();

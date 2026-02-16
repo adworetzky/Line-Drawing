@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <title>Line Drawing Studio</title>
         <!-- Google Fonts for Sci-Fi aesthetic -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -51,7 +51,7 @@
                         <line x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                 </button>
-                <h1 class="app-title">Line Drawing Studio</h1>
+                <h1 class="app-title chromatic-text">Line Drawing Studio</h1>
             </div>
             <div class="toolbar-center">
                 <div class="tool-group">
@@ -204,8 +204,10 @@
                         <polyline points="21 15 16 10 5 21" />
                     </svg>
                 </button>
-                <button id="btn-export-png" class="export-btn">Export PNG</button>
-                <button id="btn-export-svg" class="export-btn primary">Export SVG</button>
+                <button id="btn-export-png" class="export-btn">PNG</button>
+                <button id="btn-export-svg" class="export-btn primary">SVG</button>
+                <button id="btn-export-gcode" class="export-btn">G-code</button>
+                <button id="btn-export-layers" class="export-btn">Multi-Color</button>
             </div>
         </header>
 
@@ -216,17 +218,10 @@
             <aside id="sidebar-left">
                 <!-- Presets -->
                 <div class="sidebar-presets">
-                    <label class="control-label">
-                        Preset
-                        <select id="opt-preset">
-                            <option value="custom">Custom</option>
-                            <option value="sketch">Sketch</option>
-                            <option value="technical">Technical</option>
-                            <option value="hatched">Hatched</option>
-                            <option value="minimal">Minimal</option>
-                            <option value="bold">Bold</option>
-                        </select>
-                    </label>
+                    <label class="control-label">Presets</label>
+                    <div id="preset-buttons" class="preset-buttons-container">
+                        <!-- Dynamically populated by updatePresetButtons() -->
+                    </div>
                 </div>
 
                 <!-- Image source -->
@@ -254,6 +249,17 @@
                             <img id="preview-img" alt="Source preview" />
                             <button id="btn-change-image" class="small-btn">Change</button>
                         </div>
+
+                        <!-- Background removal option (appears after upload) -->
+                        <div id="bg-removal-section" style="display: none; margin-top: 12px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                                <input type="checkbox" id="opt-remove-bg" style="cursor: pointer;" />
+                                <span>Remove Background (AI)</span>
+                            </label>
+                            <div id="bg-removal-status" style="display: none; margin-top: 8px; font-size: 12px; color: var(--text-tertiary);">
+                                <span id="bg-removal-message"></span>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -261,6 +267,47 @@
                 <section class="panel">
                     <h3 class="panel-title" data-toggle="panel-processing">Processing</h3>
                     <div class="panel-body" id="panel-processing">
+                        <label class="control-label">
+                            Render Mode
+                            <select id="opt-render-mode">
+                                <option value="lines">Lines (Contours)</option>
+                                <option value="blind-contour">Blind Contour (Single Line)</option>
+                                <option value="stippling">Stippling (Dots)</option>
+                            </select>
+                        </label>
+
+                        <!-- Stippling options (hidden by default) -->
+                        <div id="stippling-options" style="display: none">
+                            <label class="control-label">
+                                Dot Density
+                                <div class="slider-row">
+                                    <input type="range" id="opt-dot-density" min="1000" max="20000" value="5000" step="500" />
+                                    <span class="slider-value" data-for="opt-dot-density">5000</span>
+                                </div>
+                            </label>
+                            <label class="control-label">
+                                Min Dot Size
+                                <div class="slider-row">
+                                    <input type="range" id="opt-min-dot-size" min="0.1" max="2" value="0.5" step="0.1" />
+                                    <span class="slider-value" data-for="opt-min-dot-size" data-suffix="px">0.5px</span>
+                                </div>
+                            </label>
+                            <label class="control-label">
+                                Max Dot Size
+                                <div class="slider-row">
+                                    <input type="range" id="opt-max-dot-size" min="1" max="8" value="3" step="0.5" />
+                                    <span class="slider-value" data-for="opt-max-dot-size" data-suffix="px">3px</span>
+                                </div>
+                            </label>
+                            <label class="control-label">
+                                Distribution
+                                <select id="opt-dot-distribution">
+                                    <option value="weighted">Weighted (Prefer Dark)</option>
+                                    <option value="uniform">Uniform</option>
+                                </select>
+                            </label>
+                        </div>
+
                         <div class="toggle-row">
                             <label>GPU Acceleration</label>
                             <label class="switch">
@@ -268,7 +315,7 @@
                                 <span class="slider"></span>
                             </label>
                         </div>
-                        <label class="control-label">
+                        <label class="control-label" id="edge-detection-label">
                             Edge Detection
                             <select id="opt-edge-method">
                                 <option value="threshold">Brightness Threshold</option>
@@ -324,6 +371,9 @@
                         </label>
                         <button id="btn-auto-threshold" class="auto-tune-btn">
                             Auto-Tune Coverage
+                        </button>
+                        <button id="btn-auto-settings" class="auto-tune-btn" style="margin-top: 8px; background: linear-gradient(135deg, var(--accent) 0%, #9333ea 100%);">
+                            ✨ Auto Settings (All)
                         </button>
                     </div>
                 </section>
@@ -457,6 +507,36 @@
                     <h3 class="panel-title" data-toggle="panel-style">Style</h3>
                     <div class="panel-body" id="panel-style">
                         <label class="control-label">
+                            UI Theme
+                            <div class="theme-selector">
+                                <button
+                                    class="theme-btn theme-tron active"
+                                    data-theme="tron"
+                                    title="TRON (Cyan/Green)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-blade"
+                                    data-theme="blade"
+                                    title="Blade Runner (Orange)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-matrix"
+                                    data-theme="matrix"
+                                    title="Matrix (Green)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-cyberpunk"
+                                    data-theme="cyberpunk"
+                                    title="Cyberpunk (Pink)"
+                                ></button>
+                                <button
+                                    class="theme-btn theme-ice"
+                                    data-theme="ice"
+                                    title="Ice (Blue/Cyan)"
+                                ></button>
+                            </div>
+                        </label>
+                        <label class="control-label">
                             Stroke Width
                             <div class="slider-row">
                                 <input
@@ -512,7 +592,10 @@
                             Paper Preset
                             <select id="opt-paper-preset">
                                 <option value="custom">Custom</option>
-                                <option value="8.5x11" selected>Letter (8.5 x 11 in)</option>
+                                <option value="4x6" selected>Postcard (4 x 6 in)</option>
+                                <option value="6x4">Postcard Landscape (6 x 4 in)</option>
+                                <option value="5x7">5 x 7 in</option>
+                                <option value="8.5x11">Letter (8.5 x 11 in)</option>
                                 <option value="11x17">Tabloid (11 x 17 in)</option>
                                 <option value="8.27x11.69">A4 (210 x 297 mm)</option>
                                 <option value="11.69x16.54">A3 (297 x 420 mm)</option>
@@ -530,7 +613,7 @@
                                 <input
                                     type="number"
                                     id="opt-width-in"
-                                    value="8.5"
+                                    value="4"
                                     min="1"
                                     max="48"
                                     step="0.25"
@@ -541,7 +624,7 @@
                                 <input
                                     type="number"
                                     id="opt-height-in"
-                                    value="11"
+                                    value="6"
                                     min="1"
                                     max="48"
                                     step="0.25"
@@ -712,5 +795,10 @@
         </div>
 
         <img id="source-img" crossorigin="Anonymous" style="display: none" />
+
+        <!-- Decorative data streams -->
+        <div class="data-stream" style="right: 15%; animation-delay: 0s"></div>
+        <div class="data-stream" style="right: 50%; animation-delay: 1s"></div>
+        <div class="data-stream" style="right: 85%; animation-delay: 2s"></div>
     </body>
 </html>

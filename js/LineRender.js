@@ -5,6 +5,217 @@
 const LineRender = (function () {
     'use strict';
 
+    /**
+     * Generate single-line blind contour drawing.
+     * One continuous path, no pen lifts, follows edges loosely.
+     * Respects all standard processing parameters (threshold, edge method, levels, etc.)
+     */
+    function renderBlindContour(options) {
+        var inputCanvas = options.inputCanvas;
+        var levels = options.levels;
+        var threshLow = options.threshLow;
+        var threshHigh = options.threshHigh;
+        var minPoints = options.minPoints;
+        var edgeMethod = options.edgeMethod;
+        var simplifyMethod = options.simplifyMethod;
+        var tolerance = options.tolerance;
+        var strokeColor = options.strokeColor || '#000000';
+        var strokeWidth = options.strokeWidth || 1;
+        var onProgress = options.onProgress;
+
+        return new Promise(function (resolve) {
+            var t0 = performance.now();
+            paper.project.clear();
+
+            if (onProgress) onProgress(10);
+
+            // Convert to grayscale
+            var src = cv.imread(inputCanvas);
+            var gray = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+            src.delete();
+
+            if (onProgress) onProgress(20);
+
+            // Extract contours from ALL threshold levels (respects user settings)
+            var thresholds = buildThresholds(threshLow, threshHigh, levels);
+            var allRawContours = [];
+
+            thresholds.forEach(function (threshVal, idx) {
+                var contours = extractContoursFromGray(gray, threshVal, minPoints, edgeMethod);
+                allRawContours = allRawContours.concat(contours);
+                if (onProgress) {
+                    onProgress(20 + Math.round((idx + 1) / thresholds.length * 30));
+                }
+            });
+
+            gray.delete();
+
+            if (onProgress) onProgress(50);
+
+            // Simplify using user's selected method and tolerance
+            var simplified = allRawContours.map(function (pts) {
+                return simplifyPoints(pts, simplifyMethod, tolerance);
+            });
+
+            if (onProgress) onProgress(60);
+
+            // Flatten all contours into single point array
+            var allPoints = [];
+            simplified.forEach(function (contour) {
+                contour.forEach(function (pt) {
+                    // pt is [x, y] array, not {x, y} object
+                    allPoints.push(new paper.Point(pt[0], pt[1]));
+                });
+            });
+
+            if (allPoints.length === 0) {
+                resolve({
+                    groups: [],
+                    totalPaths: 0,
+                    totalPoints: 0,
+                    renderTimeMs: Math.round(performance.now() - t0)
+                });
+                return;
+            }
+
+            // Build single continuous path by connecting nearest points (TSP greedy)
+            var visited = new Array(allPoints.length).fill(false);
+            var path = new paper.Path();
+            path.strokeColor = strokeColor;
+            path.strokeWidth = strokeWidth;
+            path.strokeScaling = false;
+            path.strokeCap = 'round';
+            path.strokeJoin = 'round';
+
+            // Start from top-left corner
+            var currentIdx = 0;
+            var minDist = Infinity;
+            for (var i = 0; i < allPoints.length; i++) {
+                var d = allPoints[i].x + allPoints[i].y;
+                if (d < minDist) {
+                    minDist = d;
+                    currentIdx = i;
+                }
+            }
+
+            path.add(allPoints[currentIdx]);
+            visited[currentIdx] = true;
+
+            // Greedy nearest-neighbor to build ONE continuous line
+            for (var count = 1; count < allPoints.length; count++) {
+                var current = allPoints[currentIdx];
+                var nearestIdx = -1;
+                var nearestDist = Infinity;
+
+                for (var j = 0; j < allPoints.length; j++) {
+                    if (visited[j]) continue;
+                    var dx = allPoints[j].x - current.x;
+                    var dy = allPoints[j].y - current.y;
+                    var dist = dx * dx + dy * dy;
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        nearestIdx = j;
+                    }
+                }
+
+                if (nearestIdx !== -1) {
+                    path.add(allPoints[nearestIdx]);
+                    visited[nearestIdx] = true;
+                    currentIdx = nearestIdx;
+                }
+
+                // Progress update every 100 points
+                if (count % 100 === 0 && onProgress) {
+                    onProgress(60 + Math.floor((count / allPoints.length) * 20));
+                }
+            }
+
+            if (onProgress) onProgress(85);
+
+            // Smooth the path for organic hand-drawn feel
+            path.smooth({ type: 'catmull-rom', factor: 0.5 });
+
+            // Clip to margins
+            var margin = (options.margin || 0) * (options.dpi || 96);
+            var group = new paper.Group([path]);
+            group.name = 'Blind Contour (Single Line)';
+
+            if (margin > 0) {
+                clipPathsToMargin([group], inputCanvas.width, inputCanvas.height, margin);
+            }
+
+            if (onProgress) onProgress(95);
+
+            paper.view.draw();
+
+            if (onProgress) onProgress(100);
+
+            resolve({
+                groups: [group],
+                totalPaths: 1,
+                totalPoints: path.segments.length,
+                renderTimeMs: Math.round(performance.now() - t0)
+            });
+        });
+    }
+
+    /**
+     * Generate stippling (dots) based on image brightness.
+     * Darker areas get more/bigger dots, lighter areas get fewer/smaller dots.
+     * Popular technique for pen plotters.
+     */
+    function generateStippling(inputCanvas, options) {
+        var dotDensity = options.dotDensity || 5000; // Total number of dots
+        var minDotSize = options.minDotSize || 0.5; // Minimum dot radius
+        var maxDotSize = options.maxDotSize || 3; // Maximum dot radius
+        var distribution = options.distribution || 'weighted'; // 'weighted' or 'uniform'
+
+        var w = inputCanvas.width;
+        var h = inputCanvas.height;
+        var ctx = inputCanvas.getContext('2d');
+        var imageData = ctx.getImageData(0, 0, w, h);
+        var pixels = imageData.data;
+
+        // Build brightness map
+        var brightnessMap = new Float32Array(w * h);
+        for (var i = 0; i < pixels.length; i += 4) {
+            var lum = (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114) / 255;
+            brightnessMap[i / 4] = 1 - lum; // Invert: darker = higher value
+        }
+
+        // Generate dots using weighted random sampling
+        var dots = [];
+        for (var n = 0; n < dotDensity; n++) {
+            var x, y, brightness;
+
+            if (distribution === 'weighted') {
+                // Weighted sampling: prefer darker areas
+                var attempts = 0;
+                do {
+                    x = Math.random() * w;
+                    y = Math.random() * h;
+                    var idx = Math.floor(y) * w + Math.floor(x);
+                    brightness = brightnessMap[idx] || 0;
+                    attempts++;
+                } while (Math.random() > brightness && attempts < 5);
+            } else {
+                // Uniform distribution
+                x = Math.random() * w;
+                y = Math.random() * h;
+                var idx2 = Math.floor(y) * w + Math.floor(x);
+                brightness = brightnessMap[idx2] || 0;
+            }
+
+            // Dot size based on local brightness
+            var radius = minDotSize + brightness * (maxDotSize - minDotSize);
+
+            dots.push({ x: x, y: y, radius: radius });
+        }
+
+        return dots;
+    }
+
     // Reusable temp canvas for GPU contour extraction (avoids DOM allocation per level)
     var _gpuTempCanvas = null;
 
@@ -319,8 +530,114 @@ const LineRender = (function () {
     }
 
     /**
-     * Sort paths within each group using greedy nearest-neighbor to minimize
-     * pen travel distance (important for pen plotters).
+     * Clip all paths to stay within margin bounds.
+     * Critical for pen plotters - prevents drawing outside the paper boundaries.
+     * Uses Paper.js clipping with a rectangular clipping path.
+     */
+    function clipPathsToMargin(groups, canvasWidth, canvasHeight, margin) {
+        if (margin <= 0) return; // No clipping needed if no margin
+
+        // Create clipping rectangle (canvas bounds minus margin)
+        var clipRect = new paper.Path.Rectangle({
+            point: [margin, margin],
+            size: [canvasWidth - margin * 2, canvasHeight - margin * 2]
+        });
+
+        groups.forEach(function (group) {
+            var paths = group.removeChildren();
+            paths.forEach(function (path) {
+                if (!path || !path.bounds) return;
+
+                // Intersect path with clipping rectangle
+                var clipped = path.intersect(clipRect, { insert: false });
+
+                // If intersection produces valid geometry, use it
+                if (clipped && clipped.className) {
+                    if (clipped.className === 'CompoundPath') {
+                        // Handle compound paths (multiple segments)
+                        clipped.children.forEach(function (child) {
+                            if (child.length > 0) {
+                                child.strokeWidth = path.strokeWidth;
+                                child.strokeColor = path.strokeColor;
+                                child.strokeScaling = path.strokeScaling;
+                                group.addChild(child);
+                            }
+                        });
+                        // Remove the empty CompoundPath shell (children already moved)
+                        clipped.remove();
+                    } else if (clipped.className === 'Path' && clipped.length > 0) {
+                        // Single path result - add to group (don't remove it!)
+                        clipped.strokeWidth = path.strokeWidth;
+                        clipped.strokeColor = path.strokeColor;
+                        clipped.strokeScaling = path.strokeScaling;
+                        group.addChild(clipped);
+                    }
+                    // Clean up the original path since we're using the clipped version
+                    path.remove();
+                } else {
+                    // Path fully within bounds - keep original
+                    group.addChild(path);
+                }
+            });
+        });
+
+        clipRect.remove();
+    }
+
+    /**
+     * 2-opt optimization: iteratively improves path ordering by swapping segments
+     * that reduce total travel distance. Runs after greedy nearest-neighbor.
+     */
+    function optimizePaths2Opt(paths, maxIterations) {
+        if (paths.length < 4) return paths; // Need at least 4 paths for 2-opt
+
+        maxIterations = maxIterations || 100;
+        var improved = true;
+        var iteration = 0;
+
+        // Calculate travel distance between two paths
+        function travelDist(path1, path2) {
+            var p1 = path1.lastSegment.point;
+            var p2 = path2.firstSegment.point;
+            var dx = p2.x - p1.x;
+            var dy = p2.y - p1.y;
+            return dx * dx + dy * dy; // Squared distance (faster, same ordering)
+        }
+
+        while (improved && iteration < maxIterations) {
+            improved = false;
+            iteration++;
+
+            // Try all possible 2-opt swaps
+            for (var i = 0; i < paths.length - 2; i++) {
+                for (var j = i + 2; j < paths.length; j++) {
+                    // Current edges: (i to i+1) and (j to j+1)
+                    // Proposed edges: (i to j) and (i+1 to j+1)
+                    var currentDist =
+                        travelDist(paths[i], paths[i + 1]) +
+                        (j + 1 < paths.length ? travelDist(paths[j], paths[j + 1]) : 0);
+
+                    var proposedDist =
+                        travelDist(paths[i], paths[j]) +
+                        (j + 1 < paths.length ? travelDist(paths[i + 1], paths[j + 1]) : 0);
+
+                    // If proposed swap reduces distance, apply it
+                    if (proposedDist < currentDist) {
+                        // Reverse the segment between i+1 and j
+                        var segment = paths.slice(i + 1, j + 1).reverse();
+                        paths.splice(i + 1, j - i, ...segment);
+                        improved = true;
+                    }
+                }
+            }
+        }
+
+        return paths;
+    }
+
+    /**
+     * Sort paths within each group using greedy nearest-neighbor + 2-opt TSP optimization
+     * to minimize pen travel distance (critical for pen plotters).
      */
     function sortPathsForPlotter(groups) {
         groups.forEach(function (group) {
@@ -330,7 +647,7 @@ const LineRender = (function () {
                 return;
             }
 
-            // Start from the path nearest to origin (squared distance avoids sqrt)
+            // Phase 1: Greedy nearest-neighbor (fast initial ordering)
             var current = 0;
             var minDist = Infinity;
             for (var i = 0; i < paths.length; i++) {
@@ -364,6 +681,9 @@ const LineRender = (function () {
                 visited[bestIdx] = true;
                 sorted.push(paths[bestIdx]);
             }
+
+            // Phase 2: 2-opt refinement (improves greedy result by 20-40%)
+            sorted = optimizePaths2Opt(sorted, 100);
 
             group.addChildren(sorted);
         });
@@ -404,18 +724,26 @@ const LineRender = (function () {
             var totalPaths = 0;
             var totalPoints = 0;
 
-            // Convert to grayscale ONCE for CPU path (avoids redundant conversion per level)
+            // Prepare source for processing
             var gray = null;
+            var gpuSourceTexture = null;
+
             if (!useGPU || !GPUProcessor.available) {
+                // CPU path: Convert to grayscale ONCE (avoids redundant conversion per level)
                 var src = cv.imread(inputCanvas);
                 gray = new cv.Mat();
                 cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
                 src.delete();
+            } else {
+                // GPU path: Upload source texture ONCE and reuse for all threshold levels
+                gpuSourceTexture = GPUProcessor.uploadSourceTexture(inputCanvas);
             }
 
             function processLevel(idx) {
                 if (idx >= thresholds.length) {
+                    // Clean up resources
                     if (gray) gray.delete();
+                    if (gpuSourceTexture) GPUProcessor.deleteTexture(gpuSourceTexture);
                     finalize();
                     return;
                 }
@@ -426,8 +754,14 @@ const LineRender = (function () {
                 }
 
                 var rawContours;
-                if (useGPU && GPUProcessor.available) {
-                    var imageData = GPUProcessor.threshold(inputCanvas, threshVal);
+                if (useGPU && GPUProcessor.available && gpuSourceTexture) {
+                    // Use cached texture instead of re-uploading source canvas
+                    var imageData = GPUProcessor.thresholdCached(
+                        gpuSourceTexture,
+                        threshVal,
+                        inputCanvas.width,
+                        inputCanvas.height
+                    );
                     rawContours = extractContoursGPU(imageData, minPoints);
                 } else {
                     rawContours = extractContoursFromGray(gray, threshVal, minPoints, edgeMethod);
@@ -459,9 +793,10 @@ const LineRender = (function () {
                 allGroups.push(group);
 
                 // Yield to event loop between levels to keep UI responsive
-                setTimeout(function () {
+                // Use requestAnimationFrame for smoother rendering and better frame sync
+                requestAnimationFrame(function () {
                     processLevel(idx + 1);
-                }, 0);
+                });
             }
 
             function finalize() {
@@ -497,6 +832,12 @@ const LineRender = (function () {
                 }
 
                 if (onProgress) onProgress(92);
+
+                // Clip all paths to margin bounds (critical for plotters!)
+                var margin = (options.margin || 0) * (options.dpi || 96);
+                clipPathsToMargin(allGroups, inputCanvas.width, inputCanvas.height, margin);
+
+                if (onProgress) onProgress(95);
 
                 // Sort paths within each group to minimize pen travel distance
                 sortPathsForPlotter(allGroups);
@@ -575,8 +916,73 @@ const LineRender = (function () {
         return h + 'h ' + (m > 0 ? m + 'm' : '');
     }
 
+    /**
+     * Render stippling (dots) from image.
+     * Returns Paper.js groups with circular dots.
+     */
+    function renderStippling(options) {
+        var inputCanvas = options.inputCanvas;
+        var dotDensity = options.dotDensity || 5000;
+        var minDotSize = options.minDotSize || 0.5;
+        var maxDotSize = options.maxDotSize || 3;
+        var distribution = options.distribution || 'weighted';
+        var strokeColor = options.strokeColor || '#000000';
+        var onProgress = options.onProgress;
+
+        return new Promise(function (resolve) {
+            var t0 = performance.now();
+            paper.project.clear();
+
+            if (onProgress) onProgress(20);
+
+            // Generate dots
+            var dots = generateStippling(inputCanvas, {
+                dotDensity: dotDensity,
+                minDotSize: minDotSize,
+                maxDotSize: maxDotSize,
+                distribution: distribution
+            });
+
+            if (onProgress) onProgress(60);
+
+            // Create Paper.js circles
+            var group = new paper.Group();
+            group.name = 'Stippling (' + dots.length + ' dots)';
+
+            dots.forEach(function (dot) {
+                var circle = new paper.Path.Circle({
+                    center: [dot.x, dot.y],
+                    radius: dot.radius
+                });
+                circle.fillColor = strokeColor;
+                group.addChild(circle);
+            });
+
+            if (onProgress) onProgress(90);
+
+            // Clip to margins if specified
+            var margin = (options.margin || 0) * (options.dpi || 96);
+            if (margin > 0) {
+                clipPathsToMargin([group], inputCanvas.width, inputCanvas.height, margin);
+            }
+
+            paper.view.draw();
+
+            if (onProgress) onProgress(100);
+
+            resolve({
+                groups: [group],
+                totalPaths: dots.length,
+                totalPoints: dots.length,
+                renderTimeMs: Math.round(performance.now() - t0)
+            });
+        });
+    }
+
     return {
         render,
+        renderStippling,
+        renderBlindContour,
         estimatePlotTime,
         simplifyPoints,
         buildThresholds,

@@ -225,11 +225,103 @@ const GPUProcessor = (function () {
             if (!_available) {
                 console.warn('Failed to compile GPU shaders, falling back to CPU');
             }
+
+            // Add WebGL context loss/restore handlers for mobile stability
+            canvas.addEventListener(
+                'webglcontextlost',
+                function (event) {
+                    event.preventDefault();
+                    console.warn('WebGL context lost, disabling GPU acceleration');
+                    _available = false;
+                },
+                false
+            );
+
+            canvas.addEventListener(
+                'webglcontextrestored',
+                function () {
+                    console.log('WebGL context restored, re-initializing GPU');
+                    // Re-compile all shader programs
+                    programs.grayscale = createProgram(FRAG_GRAYSCALE);
+                    programs.threshold = createProgram(FRAG_THRESHOLD);
+                    programs.sobel = createProgram(FRAG_SOBEL);
+                    programs.blurH = createProgram(FRAG_BLUR_H);
+                    programs.blurV = createProgram(FRAG_BLUR_V);
+
+                    _available = Object.values(programs).every(Boolean);
+
+                    if (_available) {
+                        console.log('GPU re-initialized successfully');
+                    } else {
+                        console.warn('Failed to restore GPU, remaining on CPU fallback');
+                    }
+                },
+                false
+            );
+
             return _available;
         },
 
         get available() {
             return _available;
+        },
+
+        /**
+         * Upload a source texture to GPU (for caching across multiple operations)
+         * sourceCanvas: canvas with the input image
+         * Returns: WebGL texture handle
+         */
+        uploadSourceTexture: function (sourceCanvas) {
+            if (!_available) return null;
+            return uploadTexture(sourceCanvas);
+        },
+
+        /**
+         * Delete a cached texture
+         * texture: WebGL texture handle
+         */
+        deleteTexture: function (texture) {
+            if (texture && gl) {
+                gl.deleteTexture(texture);
+            }
+        },
+
+        /**
+         * Apply threshold using a pre-uploaded cached texture
+         * sourceTexture: WebGL texture handle from uploadSourceTexture()
+         * thresholdValue: 0-255
+         * width, height: dimensions of the source image
+         * Returns: ImageData from the thresholded result
+         */
+        thresholdCached: function (sourceTexture, thresholdValue, width, height) {
+            if (!_available || !sourceTexture) return null;
+            canvas.width = width;
+            canvas.height = height;
+            gl.viewport(0, 0, width, height);
+
+            const prog = programs.threshold;
+            gl.useProgram(prog);
+            setupGeometry(prog);
+
+            // Use pre-uploaded texture instead of uploading again
+            gl.bindTexture(gl.TEXTURE_2D, sourceTexture);
+            gl.uniform1f(gl.getUniformLocation(prog, 'u_threshold'), thresholdValue / 255.0);
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            const pixels = new Uint8Array(width * height * 4);
+            gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            // Don't delete texture - caller manages it
+
+            // Flip vertically (WebGL reads bottom-up)
+            const flipped = new Uint8Array(width * height * 4);
+            for (let y = 0; y < height; y++) {
+                const srcOff = (height - 1 - y) * width * 4;
+                const dstOff = y * width * 4;
+                flipped.set(pixels.subarray(srcOff, srcOff + width * 4), dstOff);
+            }
+
+            return new ImageData(new Uint8ClampedArray(flipped.buffer), width, height);
         },
 
         /**
