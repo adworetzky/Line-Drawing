@@ -8,11 +8,17 @@ const LineRender = (function () {
     /**
      * Generate single-line blind contour drawing.
      * One continuous path, no pen lifts, follows edges loosely.
-     * Aggressively simplified for sketchy, organic feel.
+     * Respects all standard processing parameters (threshold, edge method, levels, etc.)
      */
     function renderBlindContour(options) {
         var inputCanvas = options.inputCanvas;
-        var simplification = options.simplification || 15; // Aggressive simplification
+        var levels = options.levels;
+        var threshLow = options.threshLow;
+        var threshHigh = options.threshHigh;
+        var minPoints = options.minPoints;
+        var edgeMethod = options.edgeMethod;
+        var simplifyMethod = options.simplifyMethod;
+        var tolerance = options.tolerance;
         var strokeColor = options.strokeColor || '#000000';
         var strokeWidth = options.strokeWidth || 1;
         var onProgress = options.onProgress;
@@ -21,22 +27,35 @@ const LineRender = (function () {
             var t0 = performance.now();
             paper.project.clear();
 
-            if (onProgress) onProgress(20);
+            if (onProgress) onProgress(10);
 
-            // Extract ONLY major contours (single threshold at mid-range)
+            // Convert to grayscale
             var src = cv.imread(inputCanvas);
             var gray = new cv.Mat();
             cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
             src.delete();
 
-            var rawContours = extractContoursFromGray(gray, 128, 20, 'canny');
+            if (onProgress) onProgress(20);
+
+            // Extract contours from ALL threshold levels (respects user settings)
+            var thresholds = buildThresholds(threshLow, threshHigh, levels);
+            var allRawContours = [];
+
+            thresholds.forEach(function (threshVal, idx) {
+                var contours = extractContoursFromGray(gray, threshVal, minPoints, edgeMethod);
+                allRawContours = allRawContours.concat(contours);
+                if (onProgress) {
+                    onProgress(20 + Math.round((idx + 1) / thresholds.length * 30));
+                }
+            });
+
             gray.delete();
 
-            if (onProgress) onProgress(40);
+            if (onProgress) onProgress(50);
 
-            // Aggressively simplify to get sketch-like quality
-            var simplified = rawContours.map(function (pts) {
-                return simplifyPoints(pts, 'rdp', simplification);
+            // Simplify using user's selected method and tolerance
+            var simplified = allRawContours.map(function (pts) {
+                return simplifyPoints(pts, simplifyMethod, tolerance);
             });
 
             if (onProgress) onProgress(60);

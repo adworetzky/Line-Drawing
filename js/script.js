@@ -359,7 +359,14 @@
             options.maxDotSize = readOption('opt-max-dot-size');
             options.distribution = readOption('opt-dot-distribution');
         } else if (renderMode === 'blind-contour') {
-            options.simplification = readOption('opt-blind-simplification');
+            // Blind contour now uses same parameters as lines mode
+            options.levels = readOption('opt-levels');
+            options.threshLow = readOption('opt-thresh-low');
+            options.threshHigh = readOption('opt-thresh-high');
+            options.minPoints = readOption('opt-min-points');
+            options.edgeMethod = readOption('opt-edge-method');
+            options.simplifyMethod = readOption('opt-simplify-method');
+            options.tolerance = readOption('opt-tolerance');
             options.strokeWidth = readOption('opt-stroke-width');
         } else {
             options.levels = readOption('opt-levels');
@@ -1121,14 +1128,12 @@
     function setupRenderModeToggle() {
         var modeSelect = $('opt-render-mode');
         var stipplingOpts = $('stippling-options');
-        var blindContourOpts = $('blind-contour-options');
 
         function updateModeUI() {
             var mode = modeSelect.value;
 
             // Hide all mode-specific options first
             hide(stipplingOpts);
-            hide(blindContourOpts);
 
             var lineOnlyPanels = document.querySelectorAll(
                 '#edge-detection-label, #panel-simplification, #panel-smoothing, #panel-hatching'
@@ -1141,11 +1146,16 @@
                     if (el) hide(el);
                 });
             } else if (mode === 'blind-contour') {
-                show(blindContourOpts);
-                // Hide line-specific options (blind contour has its own simplification)
-                lineOnlyPanels.forEach(function (el) {
-                    if (el) hide(el);
-                });
+                // Blind contour now uses same processing controls as lines mode
+                // Show edge detection and simplification, hide smoothing and hatching
+                var el = document.querySelector('#edge-detection-label');
+                if (el) show(el);
+                el = document.querySelector('#panel-simplification');
+                if (el) show(el);
+                el = document.querySelector('#panel-smoothing');
+                if (el) hide(el);
+                el = document.querySelector('#panel-hatching');
+                if (el) hide(el);
             } else {
                 // Lines mode - show all line-specific options
                 lineOnlyPanels.forEach(function (el) {
