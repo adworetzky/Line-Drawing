@@ -160,13 +160,44 @@ const Editor = (function () {
             // Touch event handlers
             let touchStartPoint = null;
             let isTouching = false;
+            let isPinching = false;
+            let initialPinchDistance = null;
+            let initialPinchZoom = null;
+            let pinchCenter = null;
+
+            // Calculate distance between two touches
+            function getTouchDistance(touch1, touch2) {
+                const dx = touch2.clientX - touch1.clientX;
+                const dy = touch2.clientY - touch1.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // Calculate midpoint between two touches
+            function getTouchMidpoint(touch1, touch2, rect) {
+                const x = (touch1.clientX + touch2.clientX) / 2 - rect.left;
+                const y = (touch1.clientY + touch2.clientY) / 2 - rect.top;
+                return new paper.Point(x, y);
+            }
 
             canvas.addEventListener(
                 'touchstart',
                 function (e) {
                     e.preventDefault();
-                    if (e.touches.length === 1) {
+
+                    if (e.touches.length === 2) {
+                        // Two-finger pinch gesture
+                        isPinching = true;
+                        isTouching = false;
+                        initialPinchDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                        initialPinchZoom = zoomLevel;
+                        const rect = canvas.getBoundingClientRect();
+                        pinchCenter = paper.view.viewToProject(
+                            getTouchMidpoint(e.touches[0], e.touches[1], rect)
+                        );
+                    } else if (e.touches.length === 1) {
+                        // Single-finger tool gesture
                         isTouching = true;
+                        isPinching = false;
                         const touch = e.touches[0];
                         const rect = canvas.getBoundingClientRect();
                         const point = new paper.Point(touch.clientX - rect.left, touch.clientY - rect.top);
@@ -186,7 +217,30 @@ const Editor = (function () {
                 'touchmove',
                 function (e) {
                     e.preventDefault();
-                    if (isTouching && e.touches.length === 1) {
+
+                    if (isPinching && e.touches.length === 2) {
+                        // Pinch-to-zoom
+                        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                        const scale = currentDistance / initialPinchDistance;
+                        const newZoom = initialPinchZoom * scale;
+
+                        // Apply zoom clamped to min/max
+                        const clampedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+
+                        // Zoom centered on pinch center point
+                        const oldZoom = zoomLevel;
+                        zoomLevel = clampedZoom;
+
+                        const beta = oldZoom / zoomLevel;
+                        const offset = pinchCenter.subtract(paper.view.center);
+                        const newCenter = pinchCenter.subtract(offset.multiply(beta));
+
+                        paper.view.zoom = zoomLevel;
+                        paper.view.center = newCenter;
+
+                        if (onZoomChange) onZoomChange(zoomLevel);
+                    } else if (isTouching && e.touches.length === 1) {
+                        // Single-finger drag
                         const touch = e.touches[0];
                         const rect = canvas.getBoundingClientRect();
                         const point = new paper.Point(touch.clientX - rect.left, touch.clientY - rect.top);
@@ -207,15 +261,28 @@ const Editor = (function () {
                 'touchend',
                 function (e) {
                     e.preventDefault();
-                    if (isTouching) {
-                        isTouching = false;
-                        touchStartPoint = null;
 
-                        // Trigger appropriate tool handler
-                        const activeTool = paper.tools.find((t) => t === paper.tool);
-                        if (activeTool && activeTool.onMouseUp) {
-                            activeTool.onMouseUp();
+                    if (e.touches.length === 0) {
+                        // All fingers lifted
+                        if (isTouching) {
+                            // End single-finger gesture
+                            const activeTool = paper.tools.find((t) => t === paper.tool);
+                            if (activeTool && activeTool.onMouseUp) {
+                                activeTool.onMouseUp();
+                            }
                         }
+                        isTouching = false;
+                        isPinching = false;
+                        touchStartPoint = null;
+                        initialPinchDistance = null;
+                        initialPinchZoom = null;
+                        pinchCenter = null;
+                    } else if (e.touches.length === 1 && isPinching) {
+                        // One finger lifted during pinch, transition to single-touch
+                        isPinching = false;
+                        initialPinchDistance = null;
+                        initialPinchZoom = null;
+                        pinchCenter = null;
                     }
                 },
                 { passive: false }
@@ -226,7 +293,11 @@ const Editor = (function () {
                 function (e) {
                     e.preventDefault();
                     isTouching = false;
+                    isPinching = false;
                     touchStartPoint = null;
+                    initialPinchDistance = null;
+                    initialPinchZoom = null;
+                    pinchCenter = null;
                 },
                 { passive: false }
             );
