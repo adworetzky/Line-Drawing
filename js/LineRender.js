@@ -563,14 +563,17 @@ const LineRender = (function () {
                                 group.addChild(child);
                             }
                         });
+                        // Remove the empty CompoundPath shell (children already moved)
+                        clipped.remove();
                     } else if (clipped.className === 'Path' && clipped.length > 0) {
-                        // Single path result
+                        // Single path result - add to group (don't remove it!)
                         clipped.strokeWidth = path.strokeWidth;
                         clipped.strokeColor = path.strokeColor;
                         clipped.strokeScaling = path.strokeScaling;
                         group.addChild(clipped);
                     }
-                    clipped.remove();
+                    // Clean up the original path since we're using the clipped version
+                    path.remove();
                 } else {
                     // Path fully within bounds - keep original
                     group.addChild(path);
