@@ -249,6 +249,17 @@
                             <img id="preview-img" alt="Source preview" />
                             <button id="btn-change-image" class="small-btn">Change</button>
                         </div>
+
+                        <!-- Background removal option (appears after upload) -->
+                        <div id="bg-removal-section" style="display: none; margin-top: 12px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                                <input type="checkbox" id="opt-remove-bg" style="cursor: pointer;" />
+                                <span>Remove Background (AI)</span>
+                            </label>
+                            <div id="bg-removal-status" style="display: none; margin-top: 8px; font-size: 12px; color: var(--text-tertiary);">
+                                <span id="bg-removal-message"></span>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

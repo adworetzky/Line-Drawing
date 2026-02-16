@@ -12,6 +12,12 @@
     let autoGenTimer = null;
     let autoGenDelay = 300; // Adaptive delay for auto-generate
 
+    // Background removal state
+    let bgRemovalLibrary = null; // Lazy-loaded @imgly/background-removal
+    let bgRemovalLoading = false;
+    let originalImageSrc = null; // Store original before bg removal
+    let bgRemovedImageSrc = null; // Store processed image
+
     // ── Presets ──
     const PRESETS = {
         sketch: {
@@ -212,6 +218,14 @@
                 hide($('drop-zone'));
                 hide($('empty-state'));
                 show($('canvas-wrapper'));
+
+                // Store original image and reset background removal state
+                originalImageSrc = src;
+                bgRemovedImageSrc = null;
+                $('opt-remove-bg').checked = false;
+                updateBgRemovalStatus(null, false);
+                show($('bg-removal-section'));
+
                 setupCanvas();
             })
             .catch(function (error) {
@@ -278,6 +292,67 @@
 
         $('btn-generate').disabled = false;
         applyBackground();
+    }
+
+    // ── Background Removal (lazy-loaded) ──
+    async function loadBackgroundRemovalLibrary() {
+        if (bgRemovalLibrary) return bgRemovalLibrary;
+        if (bgRemovalLoading) {
+            // Wait for existing load to complete
+            while (bgRemovalLoading) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            return bgRemovalLibrary;
+        }
+
+        bgRemovalLoading = true;
+        updateBgRemovalStatus('Loading AI model (~40MB, one-time download)...', true);
+
+        try {
+            // Import from CDN - uses ES modules
+            const module = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/browser.mjs');
+            bgRemovalLibrary = module.removeBackground;
+            updateBgRemovalStatus('Model loaded! Processing image...', true);
+            return bgRemovalLibrary;
+        } catch (error) {
+            console.error('Failed to load background removal library:', error);
+            updateBgRemovalStatus('Failed to load model. Check console for details.', false);
+            bgRemovalLoading = false;
+            throw error;
+        } finally {
+            bgRemovalLoading = false;
+        }
+    }
+
+    async function removeImageBackground(imageElement) {
+        try {
+            const removeBackground = await loadBackgroundRemovalLibrary();
+            updateBgRemovalStatus('Removing background...', true);
+
+            // Process the image
+            const blob = await removeBackground(imageElement);
+            const url = URL.createObjectURL(blob);
+
+            updateBgRemovalStatus('Background removed!', false);
+            return url;
+        } catch (error) {
+            console.error('Background removal failed:', error);
+            updateBgRemovalStatus('Background removal failed. See console.', false);
+            throw error;
+        }
+    }
+
+    function updateBgRemovalStatus(message, isLoading) {
+        const statusDiv = $('bg-removal-status');
+        const messageSpan = $('bg-removal-message');
+        if (!statusDiv || !messageSpan) return;
+
+        if (message) {
+            messageSpan.textContent = isLoading ? '⏳ ' + message : '✓ ' + message;
+            show(statusDiv);
+        } else {
+            hide(statusDiv);
+        }
     }
 
     function fitCanvasToView() {
@@ -781,6 +856,39 @@
 
         $('btn-change-image').addEventListener('click', function () {
             fileInput.click();
+        });
+    }
+
+    // ── Background removal toggle ──
+    function setupBackgroundRemoval() {
+        const checkbox = $('opt-remove-bg');
+        const sourceImg = $('source-img');
+
+        checkbox.addEventListener('change', async function () {
+            if (!originalImageSrc) return;
+
+            if (checkbox.checked) {
+                // Enable background removal
+                try {
+                    // Check if we already processed this image
+                    if (!bgRemovedImageSrc) {
+                        bgRemovedImageSrc = await removeImageBackground(sourceImg);
+                    }
+                    // Apply background-removed version
+                    sourceImg.src = bgRemovedImageSrc;
+                    $('preview-img').src = bgRemovedImageSrc;
+                    setupCanvas(); // Redraw canvas with new image
+                } catch (error) {
+                    // Revert checkbox on error
+                    checkbox.checked = false;
+                }
+            } else {
+                // Restore original image
+                sourceImg.src = originalImageSrc;
+                $('preview-img').src = originalImageSrc;
+                updateBgRemovalStatus(null, false);
+                setupCanvas(); // Redraw canvas with original
+            }
         });
     }
 
@@ -1404,6 +1512,7 @@
         setupPanelToggles();
         setupSliderValues();
         setupImageInput();
+        setupBackgroundRemoval();
         setupBackgroundOption();
         setupRenderModeToggle();
         setupHatchingOption();
