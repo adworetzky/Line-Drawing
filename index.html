@@ -261,6 +261,42 @@
                                 <span id="bg-removal-message"></span>
                             </div>
                         </div>
+
+                        <!-- Image positioning controls (appears after upload) -->
+                        <div id="image-position-section" style="display: none; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+                            <label class="control-label">
+                                Fit Mode
+                                <select id="opt-image-fit">
+                                    <option value="contain">Contain (fit within)</option>
+                                    <option value="cover" selected>Cover (fill canvas)</option>
+                                    <option value="manual">Manual (custom)</option>
+                                </select>
+                            </label>
+                            <div id="manual-position-controls" style="display: none;">
+                                <label class="control-label">
+                                    Scale
+                                    <div class="slider-row">
+                                        <input type="range" id="opt-image-scale" min="10" max="300" value="100" step="5" />
+                                        <span class="slider-value" data-for="opt-image-scale" data-suffix="%">100%</span>
+                                    </div>
+                                </label>
+                                <label class="control-label">
+                                    Position X
+                                    <div class="slider-row">
+                                        <input type="range" id="opt-image-x" min="-100" max="100" value="0" step="1" />
+                                        <span class="slider-value" data-for="opt-image-x" data-suffix="%">0%</span>
+                                    </div>
+                                </label>
+                                <label class="control-label">
+                                    Position Y
+                                    <div class="slider-row">
+                                        <input type="range" id="opt-image-y" min="-100" max="100" value="0" step="1" />
+                                        <span class="slider-value" data-for="opt-image-y" data-suffix="%">0%</span>
+                                    </div>
+                                </label>
+                                <button id="btn-reset-position" class="small-btn" style="margin-top: 8px;">Reset Position</button>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

@@ -225,6 +225,7 @@
                 $('opt-remove-bg').checked = false;
                 updateBgRemovalStatus(null, false);
                 show($('bg-removal-section'));
+                show($('image-position-section'));
 
                 setupCanvas();
             })
@@ -250,19 +251,44 @@
 
         var dim = getCanvasDimensions();
 
-        // Draw to input canvas (contain-fit with optional margin)
+        // Draw to input canvas with selected fit mode
         var cInput = $('c-input');
         cInput.width = dim.widthPx;
         cInput.height = dim.heightPx;
         var ctx = cInput.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, dim.widthPx, dim.heightPx);
+
         var margin = (readOption('opt-margin') || 0) * dim.dpi;
         var drawW = dim.widthPx - margin * 2;
         var drawH = dim.heightPx - margin * 2;
-        var scale = Math.min(drawW / img.naturalWidth, drawH / img.naturalHeight);
-        var x = margin + (drawW - img.naturalWidth * scale) / 2;
-        var y = margin + (drawH - img.naturalHeight * scale) / 2;
+
+        var fitMode = readOption('opt-image-fit') || 'cover';
+        var scale, x, y;
+
+        if (fitMode === 'contain') {
+            // Fit entire image within canvas (letterbox/pillarbox if needed)
+            scale = Math.min(drawW / img.naturalWidth, drawH / img.naturalHeight);
+            x = margin + (drawW - img.naturalWidth * scale) / 2;
+            y = margin + (drawH - img.naturalHeight * scale) / 2;
+        } else if (fitMode === 'cover') {
+            // Fill entire canvas (crop if needed)
+            scale = Math.max(drawW / img.naturalWidth, drawH / img.naturalHeight);
+            x = margin + (drawW - img.naturalWidth * scale) / 2;
+            y = margin + (drawH - img.naturalHeight * scale) / 2;
+        } else {
+            // Manual mode - use scale and position sliders
+            var scalePercent = (readOption('opt-image-scale') || 100) / 100;
+            var baseScale = Math.max(drawW / img.naturalWidth, drawH / img.naturalHeight);
+            scale = baseScale * scalePercent;
+
+            var xOffset = ((readOption('opt-image-x') || 0) / 100) * drawW;
+            var yOffset = ((readOption('opt-image-y') || 0) / 100) * drawH;
+
+            x = margin + (drawW - img.naturalWidth * scale) / 2 + xOffset;
+            y = margin + (drawH - img.naturalHeight * scale) / 2 + yOffset;
+        }
+
         ctx.drawImage(img, x, y, img.naturalWidth * scale, img.naturalHeight * scale);
 
         // Setup output canvas
@@ -295,6 +321,11 @@
         fitCanvasToView();
 
         $('btn-generate').disabled = false;
+
+        // Show source image overlay by default (toggle button starts active)
+        $('c-input').classList.remove('hide-source');
+        $('btn-toggle-source').classList.add('active');
+
         applyBackground();
     }
 
@@ -907,6 +938,51 @@
         });
     }
 
+    // ── Image positioning controls ──
+    function setupImagePositioning() {
+        const fitMode = $('opt-image-fit');
+        const manualControls = $('manual-position-controls');
+
+        // Show/hide manual controls based on fit mode
+        function updateFitModeUI() {
+            if (fitMode.value === 'manual') {
+                show(manualControls);
+            } else {
+                hide(manualControls);
+            }
+        }
+
+        fitMode.addEventListener('change', function () {
+            updateFitModeUI();
+            if (imageLoaded) setupCanvas();
+        });
+
+        // Wire up manual control sliders to redraw
+        $('opt-image-scale').addEventListener('input', function () {
+            if (imageLoaded && fitMode.value === 'manual') setupCanvas();
+        });
+        $('opt-image-x').addEventListener('input', function () {
+            if (imageLoaded && fitMode.value === 'manual') setupCanvas();
+        });
+        $('opt-image-y').addEventListener('input', function () {
+            if (imageLoaded && fitMode.value === 'manual') setupCanvas();
+        });
+
+        // Reset button
+        $('btn-reset-position').addEventListener('click', function () {
+            $('opt-image-scale').value = 100;
+            $('opt-image-x').value = 0;
+            $('opt-image-y').value = 0;
+            // Update slider displays
+            document.querySelector('.slider-value[data-for="opt-image-scale"]').textContent = '100%';
+            document.querySelector('.slider-value[data-for="opt-image-x"]').textContent = '0%';
+            document.querySelector('.slider-value[data-for="opt-image-y"]').textContent = '0%';
+            if (imageLoaded) setupCanvas();
+        });
+
+        updateFitModeUI();
+    }
+
     // ── Background option ──
     function setupBackgroundOption() {
         $('opt-background').addEventListener('change', function () {
@@ -1489,10 +1565,10 @@
 
         $('btn-toggle-source').addEventListener('click', function () {
             var cInput = $('c-input');
-            cInput.classList.toggle('show-source');
+            cInput.classList.toggle('hide-source');
             $('btn-toggle-source').classList.toggle(
                 'active',
-                cInput.classList.contains('show-source')
+                !cInput.classList.contains('hide-source')
             );
         });
 
@@ -1676,6 +1752,7 @@
         setupSliderValues();
         setupImageInput();
         setupBackgroundRemoval();
+        setupImagePositioning();
         setupBackgroundOption();
         setupRenderModeToggle();
         setupHatchingOption();
