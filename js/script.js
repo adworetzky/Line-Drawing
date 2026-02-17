@@ -273,12 +273,14 @@
         // Setup Paper.js on the output canvas
         paper.setup(cOutput);
 
-        // Sync c-input CSS size with c-output (Paper.js may adjust for HiDPI)
-        cInput.style.width = cOutput.style.width || dim.widthPx + 'px';
-        cInput.style.height = cOutput.style.height || dim.heightPx + 'px';
+        // Set input canvas element dimensions to match output
+        cInput.width = dim.widthPx;
+        cInput.height = dim.heightPx;
 
-        // Ensure canvas wrapper maintains aspect ratio
+        // Ensure canvas wrapper has explicit size and maintains aspect ratio
         var wrapper = $('canvas-wrapper');
+        wrapper.style.width = dim.widthPx + 'px';
+        wrapper.style.height = dim.heightPx + 'px';
         var aspectRatio = dim.widthPx / dim.heightPx;
         wrapper.style.aspectRatio = aspectRatio.toFixed(4);
 

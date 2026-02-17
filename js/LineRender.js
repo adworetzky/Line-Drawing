@@ -7,12 +7,11 @@ const LineRender = (function () {
 
     /**
      * Generate single-line blind contour drawing.
-     * One continuous path, no pen lifts, follows edges loosely.
-     * Respects all standard processing parameters (threshold, edge method, levels, etc.)
+     * One continuous path, no pen lifts, traces major edges intelligently.
+     * Uses a dominant threshold level to extract meaningful contours, then chains them.
      */
     function renderBlindContour(options) {
         var inputCanvas = options.inputCanvas;
-        var levels = options.levels;
         var threshLow = options.threshLow;
         var threshHigh = options.threshHigh;
         var minPoints = options.minPoints;
@@ -37,39 +36,51 @@ const LineRender = (function () {
 
             if (onProgress) onProgress(20);
 
-            // Extract contours from ALL threshold levels (respects user settings)
-            var thresholds = buildThresholds(threshLow, threshHigh, levels);
-            var allRawContours = [];
-
-            thresholds.forEach(function (threshVal, idx) {
-                var contours = extractContoursFromGray(gray, threshVal, minPoints, edgeMethod);
-                allRawContours = allRawContours.concat(contours);
-                if (onProgress) {
-                    onProgress(20 + Math.round((idx + 1) / thresholds.length * 30));
-                }
-            });
+            // Extract contours from a single dominant threshold (midpoint between low and high)
+            // This gives a balanced set of major edges without mixing different detail levels
+            var dominantThresh = (threshLow + threshHigh) / 2;
+            var rawContours = extractContoursFromGray(gray, dominantThresh, minPoints, edgeMethod);
 
             gray.delete();
 
+            if (onProgress) onProgress(40);
+
+            // Sort contours by size (area), largest first - this preserves natural ordering
+            rawContours.sort(function (a, b) {
+                var areaA = 0,
+                    areaB = 0;
+                for (var i = 0; i < a.length; i++) {
+                    var next = (i + 1) % a.length;
+                    areaA += (a[next][0] - a[i][0]) * (a[next][1] + a[i][1]);
+                }
+                for (var i = 0; i < b.length; i++) {
+                    var next = (i + 1) % b.length;
+                    areaB += (b[next][0] - b[i][0]) * (b[next][1] + b[i][1]);
+                }
+                return Math.abs(areaB) - Math.abs(areaA); // Largest first
+            });
+
             if (onProgress) onProgress(50);
 
-            // Simplify using user's selected method and tolerance
-            var simplified = allRawContours.map(function (pts) {
+            // Simplify each contour
+            var simplified = rawContours.map(function (pts) {
                 return simplifyPoints(pts, simplifyMethod, tolerance);
             });
 
             if (onProgress) onProgress(60);
 
-            // Flatten all contours into single point array
-            var allPoints = [];
-            simplified.forEach(function (contour) {
-                contour.forEach(function (pt) {
-                    // pt is [x, y] array, not {x, y} object
-                    allPoints.push(new paper.Point(pt[0], pt[1]));
-                });
+            // Convert contours to Paper.js paths and chain them as one continuous line
+            var contourPaths = [];
+            simplified.forEach(function (pts) {
+                if (pts.length >= 2) {
+                    var paperPts = pts.map(function (pt) {
+                        return new paper.Point(pt[0], pt[1]);
+                    });
+                    contourPaths.push(paperPts);
+                }
             });
 
-            if (allPoints.length === 0) {
+            if (contourPaths.length === 0) {
                 resolve({
                     groups: [],
                     totalPaths: 0,
@@ -79,8 +90,7 @@ const LineRender = (function () {
                 return;
             }
 
-            // Build single continuous path by connecting nearest points (TSP greedy)
-            var visited = new Array(allPoints.length).fill(false);
+            // Build one continuous path by chaining contours efficiently
             var path = new paper.Path();
             path.strokeColor = strokeColor;
             path.strokeWidth = strokeWidth;
@@ -88,46 +98,61 @@ const LineRender = (function () {
             path.strokeCap = 'round';
             path.strokeJoin = 'round';
 
-            // Start from top-left corner
-            var currentIdx = 0;
-            var minDist = Infinity;
-            for (var i = 0; i < allPoints.length; i++) {
-                var d = allPoints[i].x + allPoints[i].y;
-                if (d < minDist) {
-                    minDist = d;
-                    currentIdx = i;
-                }
-            }
+            // Start with the first (largest) contour
+            var currentPathIdx = 0;
+            var isReversed = false;
+            contourPaths[currentPathIdx].forEach(function (pt) {
+                path.add(pt);
+            });
+            var usedPaths = [true];
+            for (var u = 1; u < contourPaths.length; u++) usedPaths.push(false);
 
-            path.add(allPoints[currentIdx]);
-            visited[currentIdx] = true;
+            var lastPt = path.lastSegment.point;
 
-            // Greedy nearest-neighbor to build ONE continuous line
-            for (var count = 1; count < allPoints.length; count++) {
-                var current = allPoints[currentIdx];
-                var nearestIdx = -1;
-                var nearestDist = Infinity;
+            // Chain remaining contours by finding nearest endpoint
+            for (var chain = 1; chain < contourPaths.length; chain++) {
+                var bestIdx = -1;
+                var bestDist = Infinity;
+                var bestReverse = false;
 
-                for (var j = 0; j < allPoints.length; j++) {
-                    if (visited[j]) continue;
-                    var dx = allPoints[j].x - current.x;
-                    var dy = allPoints[j].y - current.y;
-                    var dist = dx * dx + dy * dy;
-                    if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearestIdx = j;
+                for (var i = 0; i < contourPaths.length; i++) {
+                    if (usedPaths[i]) continue;
+
+                    var contourPts = contourPaths[i];
+                    var startPt = contourPts[0];
+                    var endPt = contourPts[contourPts.length - 1];
+
+                    // Check distance to start point
+                    var dStart = lastPt.getDistance(startPt);
+                    if (dStart < bestDist) {
+                        bestDist = dStart;
+                        bestIdx = i;
+                        bestReverse = false;
+                    }
+
+                    // Check distance to end point
+                    var dEnd = lastPt.getDistance(endPt);
+                    if (dEnd < bestDist) {
+                        bestDist = dEnd;
+                        bestIdx = i;
+                        bestReverse = true;
                     }
                 }
 
-                if (nearestIdx !== -1) {
-                    path.add(allPoints[nearestIdx]);
-                    visited[nearestIdx] = true;
-                    currentIdx = nearestIdx;
+                if (bestIdx !== -1) {
+                    usedPaths[bestIdx] = true;
+                    var pts = contourPaths[bestIdx];
+                    if (bestReverse) {
+                        pts = pts.slice().reverse();
+                    }
+                    pts.forEach(function (pt) {
+                        path.add(pt);
+                    });
+                    lastPt = path.lastSegment.point;
                 }
 
-                // Progress update every 100 points
-                if (count % 100 === 0 && onProgress) {
-                    onProgress(60 + Math.floor((count / allPoints.length) * 20));
+                if (chain % 10 === 0 && onProgress) {
+                    onProgress(60 + Math.floor((chain / contourPaths.length) * 20));
                 }
             }
 
@@ -776,7 +801,10 @@ const LineRender = (function () {
 
                 simplified.forEach(function (pts) {
                     if (pts.length < 2) return;
-                    var path = new paper.Path(pts);
+                    var paperPts = pts.map(function (pt) {
+                        return new paper.Point(pt[0], pt[1]);
+                    });
+                    var path = new paper.Path(paperPts);
                     path.closed = true;
                     if (smoothType !== 'none') {
                         path.smooth({ type: smoothType, factor: tension });
