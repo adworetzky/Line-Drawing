@@ -45,11 +45,12 @@ A modern web browser with WebGL support (Chrome, Firefox, Edge, Safari).
 
 ### Basic Workflow
 
-1. **Load an image** — Drag and drop onto the source panel, or click to browse.
-2. **Pick a preset** — Choose Sketch, Technical, Hatched, Minimal, or Bold from the dropdown at the top of the sidebar, or dial in your own settings.
-3. **Generate** — Click the **Generate** button (or enable **Auto** to regenerate on every parameter change).
-4. **Edit** — Use the toolbar to select, move, or erase individual paths.
-5. **Export** — Save as PNG or SVG using the buttons in the top-right corner.
+1. **Load an image** — Drag and drop onto the source panel, or click to browse. The image appears as a semi-transparent overlay on the canvas so you can preview the composition.
+2. **Position the image** — Use the Fit Mode selector to choose how the image fills the canvas (Contain, Cover, or Manual). In Manual mode, adjust scale and position with sliders.
+3. **Pick a preset** — Choose Sketch, Technical, Hatched, Minimal, or Bold from the dropdown at the top of the sidebar, or dial in your own settings.
+4. **Generate** — Click the **Generate** button (or enable **Auto** to regenerate on every parameter change).
+5. **Edit** — Use the toolbar to select, move, or erase individual paths.
+6. **Export** — Save as PNG or SVG using the buttons in the top-right corner.
 
 ## Features
 
@@ -66,6 +67,18 @@ Five built-in parameter presets for quick starting points:
 | **Bold** | Many levels with thick, weight-varied strokes for dramatic results |
 
 Selecting any preset populates all controls. Changing any control afterward switches the preset dropdown back to "Custom".
+
+### Image Positioning & Preview
+
+The source image appears as a semi-transparent overlay on the canvas before generating, allowing you to preview and adjust the composition:
+
+| Feature | Description |
+|---------|-------------|
+| **Image Overlay** | Source image visible at 50% opacity by default. Toggle on/off with the image icon in the toolbar. |
+| **Fit Mode** | Choose how the image fills the canvas:<br>• **Contain** — Fits entire image within canvas (letterbox/pillarbox)<br>• **Cover** (default) — Fills entire canvas, cropping edges if needed<br>• **Manual** — Custom scale and position controls |
+| **Manual Controls** | When Manual mode is selected:<br>• **Scale** — 10% to 300% of base size<br>• **Position X/Y** — -100% to 100% offset for precise positioning<br>• **Reset** — Restore default position and scale |
+
+Changes to fit mode or manual controls update the preview in real-time, so the generated line drawing matches your intended composition.
 
 ### Image Processing
 
