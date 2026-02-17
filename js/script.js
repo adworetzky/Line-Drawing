@@ -269,13 +269,15 @@
         var cOutput = $('c-output');
         cOutput.width = dim.widthPx;
         cOutput.height = dim.heightPx;
+        cOutput.style.width = dim.widthPx + 'px';
+        cOutput.style.height = dim.heightPx + 'px';
+
+        // Set input canvas CSS dimensions to match output
+        cInput.style.width = dim.widthPx + 'px';
+        cInput.style.height = dim.heightPx + 'px';
 
         // Setup Paper.js on the output canvas
         paper.setup(cOutput);
-
-        // Set input canvas element dimensions to match output
-        cInput.width = dim.widthPx;
-        cInput.height = dim.heightPx;
 
         // Ensure canvas wrapper has explicit size and maintains aspect ratio
         var wrapper = $('canvas-wrapper');

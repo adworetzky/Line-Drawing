@@ -1168,8 +1168,6 @@ input[type='color']::-webkit-color-swatch {
 #c-output {
     display: block;
     position: relative;
-    width: 100%;
-    height: 100%;
     z-index: 1;
     background: #fff;
     cursor: crosshair;
