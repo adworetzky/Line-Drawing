@@ -4,6 +4,8 @@ A browser-based application that converts photographs into stylized line drawing
 
 **Fully responsive** — works on desktop, tablet, and mobile.
 
+[Try it out!](https://adworetzky.github.io/Line-Drawing/)
+
 ## Example Output
 
 **Portrait** — contour lines with Catmull-Rom smoothing on paper texture:
